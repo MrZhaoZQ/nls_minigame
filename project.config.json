@@ -1,0 +1,55 @@
+{
+  "description": "拧螺丝啦",
+  "packOptions": {
+    "ignore": [
+      {
+        "value": "test",
+        "type": "folder"
+      },
+      {
+        "value": "scripts",
+        "type": "folder"
+      },
+      {
+        "value": "GDD.md",
+        "type": "file"
+      }
+    ],
+    "include": []
+  },
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "nodeModules": false,
+    "compileWorklet": false,
+    "uglifyFileName": false,
+    "uploadWithSourceMap": true,
+    "packNpmManually": false,
+    "packNpmRelationList": [],
+    "minifyWXSS": true,
+    "minifyWXML": true,
+    "localPlugins": false,
+    "disableUseStrict": false,
+    "useCompilerPlugins": false,
+    "condition": false,
+    "swc": false,
+    "disableSWC": true,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
+  },
+  "compileType": "game",
+  "appid": "wx30bb8fa22ff4c18f",
+  "projectname": "screw-master",
+  "simulatorPluginLibVersion": {},
+  "condition": {},
+  "editorSetting": {
+    "tabIndent": "insertSpaces",
+    "tabSize": 2
+  }
+}
