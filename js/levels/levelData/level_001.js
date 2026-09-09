@@ -5,7 +5,8 @@ module.exports = {
   "name": "新手 1",
   "colors": [
     "red",
-    "blue"
+    "blue",
+    "yellow"
   ],
   "slotCount": 5,
   "gridSize": 8,
@@ -32,7 +33,7 @@ module.exports = {
             0,
             -0.26
           ],
-          "color": "red"
+          "color": "blue"
         },
         {
           "id": "h2",
@@ -50,7 +51,7 @@ module.exports = {
             0,
             -0.26
           ],
-          "color": "blue"
+          "color": "yellow"
         },
         {
           "id": "h4",
@@ -59,7 +60,7 @@ module.exports = {
             0,
             -0.26
           ],
-          "color": "blue"
+          "color": "yellow"
         }
       ]
     },
@@ -85,7 +86,7 @@ module.exports = {
             0,
             0.26
           ],
-          "color": "blue"
+          "color": "yellow"
         },
         {
           "id": "h2",
@@ -94,7 +95,7 @@ module.exports = {
             0,
             -0.26
           ],
-          "color": "red"
+          "color": "blue"
         },
         {
           "id": "h3",
@@ -121,7 +122,7 @@ module.exports = {
             0,
             -0.26
           ],
-          "color": "red"
+          "color": "blue"
         }
       ]
     }

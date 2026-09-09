@@ -20,7 +20,7 @@ const STAGES = [
 const COLOR_NAMES = ['red', 'blue', 'yellow', 'green', 'purple', 'orange'];
 
 const EARLY = {
-  1: { layers: [1, 1], boards: [1, 2], colors: [2, 2], screws: [6, 9], cover: 0 },
+  1: { layers: [1, 1], boards: [1, 2], colors: [3, 3], screws: [9, 9], cover: 0 },
   2: { layers: [1, 1], boards: [2, 2], colors: [3, 3], screws: [9, 12], cover: 0 },
   3: { layers: [2, 2], boards: [2, 3], colors: [3, 3], screws: [12, 12], cover: 0.3 },
   4: { layers: [2, 2], boards: [3, 4], colors: [4, 4], screws: [12, 15], cover: 0.4 },

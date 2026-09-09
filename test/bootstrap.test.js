@@ -61,15 +61,31 @@ test('bootstrap + play level to win via simulated taps', () => {
 
   let safety = 0;
   while (game.totalRemainingOnBoards() > 0 && safety++ < 400) {
+    const slots = game.slotManager.slots;
+    const slotCounts = {};
+    for (let i = 0; i < slots.length; i++) slotCounts[slots[i]] = (slotCounts[slots[i]] || 0) + 1;
+    const free = game.slotManager.capacity - slots.length;
+    const colorRemain = {};
+    for (let i = 0; i < game.screwManager.screws.length; i++) {
+      const s = game.screwManager.screws[i];
+      if (s.state === 'locked' || s.state === 'unlocked') {
+        colorRemain[s.color] = (colorRemain[s.color] || 0) + 1;
+      }
+    }
     let target = null;
-    let fallback = null;
+    let bestScore = -Infinity;
     for (let i = 0; i < game.screwManager.screws.length; i++) {
       const s = game.screwManager.screws[i];
       if (s.state !== 'unlocked') continue;
-      if (!fallback) fallback = s;
-      if (game.slotManager.slots.indexOf(s.color) >= 0) { target = s; break; }
+      const cnt = slotCounts[s.color] || 0;
+      let score = cnt * 40;
+      if (cnt >= 2) score += 200;
+      if (free <= 1 && cnt === 0) score -= 150;
+      const b = game.boardById[s.boardId];
+      if (b && b.remaining === 1) score += 25;
+      score += (colorRemain[s.color] || 0) * 2;
+      if (score > bestScore) { bestScore = score; target = s; }
     }
-    if (!target) target = fallback;
     assert(target, 'always an unlocked screw available (no deadlock)');
 
     const stamp = scene.beginFrame();
