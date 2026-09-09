@@ -127,6 +127,20 @@ const Platform = {
     }
   },
 
+  setUserCloudStorage(kvList) {
+    if (_mock) {
+      _mock.cloudStorage = (_mock.cloudStorage || []).concat([kvList]);
+      return;
+    }
+    if (hasWx() && wx.setUserCloudStorage) {
+      wx.setUserCloudStorage({
+        KVData: kvList,
+        success() {},
+        fail() {}
+      });
+    }
+  },
+
   onShareAppMessage(cb) {
     if (_mock) { _mock.shareHandlers.push(cb); return; }
     if (hasWx() && wx.onShareAppMessage) wx.onShareAppMessage(cb);

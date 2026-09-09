@@ -561,8 +561,18 @@ function bootstrap() {
     const base = game.collectedCount * 10;
     app.lastWinCoins = base;
     const balance = SaveManager.addCoins(base);
-    syncCoins();
     resultPanel.show(base, { stars, costMs, moves, balance });
+
+    const maxCleared = SaveManager.getProgress().unlockedLevel - 1;
+    Platform.setUserCloudStorage([{
+      key: GameConfig.social.rankKey,
+      value: JSON.stringify({
+        wxgame: {
+          score: Math.max(0, maxCleared),
+          update_time: Math.floor(Platform.now() / 1000)
+        }
+      })
+    }]);
   });
   app.bus.on(Events.LEVEL_LOSE, () => {
     failPanel.coinLabel = '花 ' + GameConfig.economy.rescueCost + ' 金币 撤回一步';

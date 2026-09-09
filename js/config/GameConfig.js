@@ -18,6 +18,7 @@ const GameConfig = {
     imageId: 'NhraUZjpQfuVp2CrmYHT/A=='
   },
   economy: { hintCost: 30, undoCost: 20, rescueCost: 50 },
+  social: { rankKey: 'WRofNLSL' },
   levels: { totalShipped: 30, maxUndoOps: 30 },
   render: { fov: 45, near: 0.1, far: 50,
             lightDir: [0.5, 1, 0.35], ambient: 0.45,

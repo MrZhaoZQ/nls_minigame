@@ -91,6 +91,14 @@ test('bootstrap + play level to win via simulated taps', () => {
   assertEq(wins, 1);
   assert(app.resultPanel.visible, 'result panel shown');
 
+  const reports = mock.cloudStorage || [];
+  assert(reports.length >= 1, 'rank reported on win');
+  const kv = reports[reports.length - 1][0];
+  assertEq(kv.key, 'WRofNLSL');
+  const parsed = JSON.parse(kv.value);
+  assertEq(parsed.wxgame.score, 1, 'score = max cleared level');
+  assert(typeof parsed.wxgame.update_time === 'number');
+
   app.resultPanel._layout();
   const nb = app.resultPanel.buttons.find(b => b.id === 'next');
   assert(nb, 'next button exists');
