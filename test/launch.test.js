@@ -81,6 +81,20 @@ test('warm start from share card jumps to level', () => {
   delete require.cache[require.resolve('../js/main')];
 });
 
+test('startup reports existing progress to rank', () => {
+  const { app, mock } = freshBootstrap({ unlocked: 5 });
+  const reports = mock.cloudStorage || [];
+  assert(reports.length >= 1, 'startup report emitted');
+  const kv = reports[0][0];
+  assertEq(kv.key, 'WRofNLSL');
+  assertEq(JSON.parse(kv.value).wxgame.score, 4);
+  const before = reports.length;
+  mock.showHandlers[0]({});
+  assertEq((mock.cloudStorage || []).length, before + 1, 'onShow re-reports for weekly freshness');
+  Platform.inject(null);
+  delete require.cache[require.resolve('../js/main')];
+});
+
 test('long hide on level select does not show resume overlay', () => {
   const { app, mock } = freshBootstrap({ unlocked: 3 });
   assertEq(app.inMenu, true);

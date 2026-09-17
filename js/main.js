@@ -563,17 +563,24 @@ function bootstrap() {
     const balance = SaveManager.addCoins(base);
     resultPanel.show(base, { stars, costMs, moves, balance });
 
+    reportRank();
+  });
+
+  function reportRank() {
     const maxCleared = SaveManager.getProgress().unlockedLevel - 1;
+    if (maxCleared <= 0) return;
     Platform.setUserCloudStorage([{
       key: GameConfig.social.rankKey,
       value: JSON.stringify({
         wxgame: {
-          score: Math.max(0, maxCleared),
+          score: maxCleared,
           update_time: Math.floor(Platform.now() / 1000)
         }
       })
     }]);
-  });
+  }
+  app.reportRank = reportRank;
+  reportRank();
   app.bus.on(Events.LEVEL_LOSE, () => {
     failPanel.coinLabel = '花 ' + GameConfig.economy.rescueCost + ' 金币 撤回一步';
     failPanel.show({
@@ -639,6 +646,7 @@ function bootstrap() {
     }
     app.hiddenAt = null;
     lastTs = Platform.now();
+    reportRank();
   });
 
   Platform.onWindowResize(() => {

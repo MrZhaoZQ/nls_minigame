@@ -133,11 +133,17 @@ const Platform = {
       return;
     }
     if (hasWx() && wx.setUserCloudStorage) {
-      wx.setUserCloudStorage({
-        KVData: kvList,
-        success() {},
-        fail() {}
-      });
+      const attempt = (n) => {
+        wx.setUserCloudStorage({
+          KVData: kvList,
+          success() {},
+          fail(err) {
+            if (n > 0) setTimeout(() => attempt(n - 1), 2000);
+            else console.warn('[rank] setUserCloudStorage fail:', err && err.errMsg);
+          }
+        });
+      };
+      attempt(1);
     }
   },
 
