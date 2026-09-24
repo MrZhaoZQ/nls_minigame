@@ -9,6 +9,13 @@ class PausePanel {
     this.visible = false;
     this.muted = false;
     this.buttons = [];
+    this.pressedId = null;
+    this.pressedT = 0;
+  }
+
+  setPressed(id) {
+    this.pressedId = id;
+    this.pressedT = 0.16;
   }
 
   resize(w, h) {
@@ -26,7 +33,12 @@ class PausePanel {
     this.visible = false;
   }
 
-  update(dt) {}
+  update(dt) {
+    if (this.pressedT > 0) {
+      this.pressedT -= dt;
+      if (this.pressedT <= 0) this.pressedId = null;
+    }
+  }
 
   _layout() {
     const bw = 220;
@@ -79,7 +91,8 @@ class PausePanel {
 
     for (let i = 0; i < this.buttons.length; i++) {
       const b = this.buttons[i];
-      UISystem.roundRect(ctx, b.x, b.y, b.w, b.h, 12);
+      const pr = this.pressedId === b.id ? 3 : 0;
+      UISystem.roundRect(ctx, b.x + pr, b.y + pr, b.w - pr * 2, b.h - pr * 2, 12);
       ctx.fillStyle = b.id === 'resume' ? '#27ae60'
         : (b.id === 'restart' ? '#e67e22' : 'rgba(255,255,255,0.92)');
       ctx.fill();

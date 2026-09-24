@@ -19,6 +19,13 @@ class LevelSelect {
     this.maxScroll = 0;
     this.viewTop = 0;
     this.viewBottom = 0;
+    this.pressedId = null;
+    this.pressedT = 0;
+  }
+
+  setPressed(id) {
+    this.pressedId = id;
+    this.pressedT = 0.16;
   }
 
   resize(w, h) {
@@ -47,7 +54,12 @@ class LevelSelect {
     this.visible = false;
   }
 
-  update(dt) {}
+  update(dt) {
+    if (this.pressedT > 0) {
+      this.pressedT -= dt;
+      if (this.pressedT <= 0) this.pressedId = null;
+    }
+  }
 
   _layout() {
     const cols = 5;
@@ -150,7 +162,8 @@ class LevelSelect {
       const locked = c.id > this.unlocked;
       const rec = this.results[c.id];
 
-      UISystem.roundRect(ctx, c.x, c.y, c.w, c.h, 12);
+      const pr = this.pressedId === 'l' + c.id ? 3 : 0;
+      UISystem.roundRect(ctx, c.x + pr, c.y + pr, c.w - pr * 2, c.h - pr * 2, 12);
       if (locked) ctx.fillStyle = 'rgba(120,130,140,0.35)';
       else ctx.fillStyle = '#ffffff';
       ctx.fill();
@@ -191,7 +204,8 @@ class LevelSelect {
 
     const e = this.expandBtn;
     const enabled = this.canExpand && this.capacity < 8;
-    UISystem.roundRect(ctx, e.x, e.y, e.w, e.h, 23);
+    const epr = this.pressedId === 'expand' ? 3 : 0;
+    UISystem.roundRect(ctx, e.x + epr, e.y + epr, e.w - epr * 2, e.h - epr * 2, 23);
     ctx.fillStyle = enabled ? '#f39c12' : 'rgba(150,150,150,0.5)';
     ctx.fill();
     ctx.fillStyle = '#ffffff';

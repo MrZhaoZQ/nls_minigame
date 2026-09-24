@@ -328,6 +328,7 @@ function bootstrap() {
 
     if (levelSelect.visible) {
       const hit = levelSelect.hitTest(x, y);
+      if (hit) levelSelect.setPressed(hit.type === 'level' ? 'l' + hit.id : hit.type);
       if (hit && hit.type === 'level') startLevelById(hit.id);
       else if (hit && hit.type === 'expand') {
         if (slotManager.capacity >= GameConfig.slot.maxCount) {
@@ -354,9 +355,10 @@ function bootstrap() {
 
     if (pausePanel.visible) {
       const ph = pausePanel.hitTest(x, y);
+      if (ph) pausePanel.setPressed(ph);
       if (ph === 'resume') pausePanel.hide();
       else if (ph === 'sound') {
-        audio.muted = !audio.muted;
+        audio.setMuted(!audio.muted);
         pausePanel.muted = audio.muted;
       } else if (ph === 'help') {
         pausePanel.hide();
@@ -385,6 +387,7 @@ function bootstrap() {
 
     const winHit = resultPanel.hitTest(x, y);
     if (winHit) {
+      resultPanel.setPressed(winHit);
       if (winHit === 'next') {
         resultPanel.hide();
         startLevelById(app.currentLevelId + 1);
@@ -405,6 +408,7 @@ function bootstrap() {
 
     const failHit = failPanel.hitTest(x, y);
     if (failHit) {
+      failPanel.setPressed(failHit);
       if (failHit === 'retry') {
         failPanel.hide();
         startLevelById(app.currentLevelId);
@@ -445,6 +449,7 @@ function bootstrap() {
 
     const hit = topBar.hitTest(x, y);
     if (hit && tutorial.active) return;
+    if (hit) topBar.setPressed(hit);
     if (hit === 'undo') {
       if (game.undoStack.size() === 0) {
         app.bus.emit('UNDO_DENIED', { reason: 'empty' });
@@ -562,6 +567,7 @@ function bootstrap() {
     app.lastWinCoins = base;
     const balance = SaveManager.addCoins(base);
     resultPanel.show(base, { stars, costMs, moves, balance });
+    particles.confetti(app.screen.width / 2, app.screen.height * 0.3, 36);
 
     reportRank();
   });

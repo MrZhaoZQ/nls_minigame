@@ -72,7 +72,11 @@ class Tween {
       this._state = DONE;
       this._manager.remove(this);
       if (this.onComplete) this.onComplete();
-      if (this._next) this._next.start();
+      if (this._next) {
+        this._next.start();
+        const overflow = local - this.duration;
+        if (overflow > 0) this._next.advance(overflow);
+      }
     }
   }
 }

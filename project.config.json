@@ -13,6 +13,18 @@
       {
         "value": "GDD.md",
         "type": "file"
+      },
+      {
+        "value": "ARCHITECTURE.md",
+        "type": "file"
+      },
+      {
+        "value": "README.md",
+        "type": "file"
+      },
+      {
+        "value": "minigameImgs.zip",
+        "type": "file"
       }
     ],
     "include": []

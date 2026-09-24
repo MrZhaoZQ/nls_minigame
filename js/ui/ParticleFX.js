@@ -27,7 +27,31 @@ class ParticleFX {
     p.size = props.size || 4;
     p.color = props.color;
     p.shape = props.shape || 'circle';
+    p.rot = props.rot || 0;
+    p.vrot = props.vrot || 0;
     this.active.push(p);
+  }
+
+  confetti(x, y, count) {
+    const palette = ['#e74c3c', '#3498db', '#f1c40f', '#2ecc71', '#9b59b6', '#ff9500'];
+    const n = count || 30;
+    for (let i = 0; i < n; i++) {
+      const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.2;
+      const speed = 260 + Math.random() * 380;
+      this._spawn({
+        x: x + (Math.random() - 0.5) * 60,
+        y: y,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        gravity: 780,
+        size: 4 + Math.random() * 4,
+        maxLife: 1.1 + Math.random() * 0.7,
+        color: palette[i % palette.length],
+        shape: 'rect',
+        rot: Math.random() * Math.PI,
+        vrot: (Math.random() - 0.5) * 14
+      });
+    }
   }
 
   burst(x, y, colorName, count) {
@@ -77,6 +101,7 @@ class ParticleFX {
       p.vy += p.gravity * dt;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
+      p.rot += p.vrot * dt;
     }
   }
 
@@ -88,9 +113,17 @@ class ParticleFX {
       const alpha = 1 - p.life / p.maxLife;
       ctx.globalAlpha = alpha;
       ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size * (0.6 + 0.4 * alpha), 0, Math.PI * 2);
-      ctx.fill();
+      if (p.shape === 'rect') {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillRect(-p.size / 2, -p.size * 0.35, p.size, p.size * 0.7);
+        ctx.restore();
+      } else {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * (0.6 + 0.4 * alpha), 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
     ctx.restore();
   }

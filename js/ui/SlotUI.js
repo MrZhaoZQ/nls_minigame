@@ -15,6 +15,10 @@ class SlotUI {
     this.warnPulse = 0;
     this.warning = false;
     this._pendingIndex = -1;
+    this.shakeT = 0;
+    this.whiteT = 0;
+    this.floats = [];
+    this.flash = null;
 
     bus.on(Events.SLOT_UPDATED, (d) => {
       this.slots = d.slots.slice();
@@ -28,6 +32,16 @@ class SlotUI {
     });
     bus.on(Events.MATCH_MADE, (d) => {
       this.flash = { color: d.color, t: 0 };
+      this.shakeT = 0.28;
+      this.whiteT = 0.14;
+      const combo = (d && d.combo) || 1;
+      this.floats.push({
+        text: combo > 1 ? '连消 ×' + combo + '！' : '+3',
+        color: d.color,
+        x: this.w / 2,
+        y: this.y - 6,
+        t: 0
+      });
     });
     bus.on(Events.SLOT_FULL_WARNING, () => {
       this.warning = true;
@@ -51,6 +65,9 @@ class SlotUI {
       this._pendingIndex = -1;
       this._lastFlight = null;
       this.flash = null;
+      this.shakeT = 0;
+      this.whiteT = 0;
+      this.floats = [];
     });
   }
 
@@ -100,6 +117,13 @@ class SlotUI {
       if (this.bounces[i].t >= 1) this.bounces.splice(i, 1);
     }
     if (this.warning) this.warnPulse += dt;
+    if (this.shakeT > 0) this.shakeT = Math.max(0, this.shakeT - dt);
+    if (this.whiteT > 0) this.whiteT = Math.max(0, this.whiteT - dt);
+    for (let i = this.floats.length - 1; i >= 0; i--) {
+      const f = this.floats[i];
+      f.t += dt / 0.7;
+      if (f.t >= 1) this.floats.splice(i, 1);
+    }
     if (this.flash) {
       this.flash.t += dt / 0.4;
       if (this.flash.t >= 1) this.flash = null;
@@ -108,6 +132,10 @@ class SlotUI {
 
   draw(ctx) {
     ctx.save();
+    if (this.shakeT > 0) {
+      const k = this.shakeT / 0.28;
+      ctx.translate(Math.sin(this.shakeT * 90) * 4 * k, 0);
+    }
     const pr = this.panelRect();
 
     UISystem.roundRect(ctx, pr.x, pr.y, pr.w, pr.h, pr.r);
@@ -180,6 +208,28 @@ class SlotUI {
       UISystem.roundRect(ctx, pr.x, pr.y, pr.w, pr.h, pr.r);
       ctx.fillStyle = UISystem.screwColorSet(this.flash.color).light;
       ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    if (this.whiteT > 0) {
+      ctx.globalAlpha = this.whiteT / 0.14 * 0.55;
+      ctx.fillStyle = '#ffffff';
+      UISystem.roundRect(ctx, pr.x, pr.y, pr.w, pr.h, pr.r);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+
+    for (let i = 0; i < this.floats.length; i++) {
+      const f = this.floats[i];
+      ctx.globalAlpha = 1 - f.t;
+      ctx.font = 'bold ' + (f.text.length > 2 ? 22 : 18) + 'px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+      ctx.lineWidth = 3;
+      const fy = f.y - f.t * 46;
+      ctx.strokeText(f.text, f.x, fy);
+      ctx.fillStyle = UISystem.screwColorSet(f.color).main;
+      ctx.fillText(f.text, f.x, fy);
       ctx.globalAlpha = 1;
     }
 

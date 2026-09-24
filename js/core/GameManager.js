@@ -159,7 +159,9 @@ class GameManager {
     if (matches.length > 0) {
       for (let i = 0; i < matches.length; i++) {
         const removed = this.slotManager.removeMatch(matches[i]);
-        this.bus.emit(Events.MATCH_MADE, { color: matches[i], count: removed });
+        this.bus.emit(Events.MATCH_MADE, {
+          color: matches[i], count: removed, combo: matches.length
+        });
       }
       this.bus.emit(Events.SLOT_UPDATED, { slots: this.slotManager.slots.slice(), arrivedIndex: -1 });
     }

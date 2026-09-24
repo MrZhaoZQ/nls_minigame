@@ -12,6 +12,8 @@ class FailPanel {
     this.undoOffered = true;
     this.clearOffered = true;
     this.coinOffered = false;
+    this.pressedId = null;
+    this.pressedT = 0;
     this.undoLabel = '看视频 撤回最后一步';
     this.clearLabel = '看视频 移出3颗螺丝';
     this.coinLabel = '花 50 金币 撤回一步';
@@ -39,6 +41,15 @@ class FailPanel {
 
   update(dt) {
     if (this.visible && this.animT < 1) this.animT = Math.min(1, this.animT + dt / 0.3);
+    if (this.pressedT > 0) {
+      this.pressedT -= dt;
+      if (this.pressedT <= 0) this.pressedId = null;
+    }
+  }
+
+  setPressed(id) {
+    this.pressedId = id;
+    this.pressedT = 0.16;
   }
 
   _layout() {
@@ -109,10 +120,11 @@ class FailPanel {
 
     for (let i = 0; i < this.buttons.length; i++) {
       const b = this.buttons[i];
-      UISystem.roundRect(ctx, b.x, b.y, b.w, b.h, 12);
+      const pr = this.pressedId === b.id ? 3 : 0;
+      UISystem.roundRect(ctx, b.x + pr, b.y + pr, b.w - pr * 2, b.h - pr * 2, 12);
       ctx.fillStyle = b.id === 'coinUndo' ? '#3498db' : (b.primary ? '#e74c3c' : '#f39c12');
       ctx.fill();
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = b.id === 'coinUndo' ? '#ffffff' : '#2c3e50';
       ctx.font = 'bold 15px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(b.label, b.x + b.w / 2, b.y + b.h / 2 + 5);

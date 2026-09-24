@@ -103,7 +103,7 @@ test('bootstrap + play level to win via simulated taps', () => {
   }
 
   assert(safety < 400, 'level finished within move budget');
-  stepFrames(60, 20);
+  stepFrames(80, 20);
   assertEq(wins, 1);
   assert(app.resultPanel.visible, 'result panel shown');
 

@@ -13,6 +13,13 @@ class ResultPanel {
     this.buttons = [];
     this.nextLabel = '下一关';
     this.doubleLabel = '看视频 金币翻倍';
+    this.pressedId = null;
+    this.pressedT = 0;
+  }
+
+  setPressed(id) {
+    this.pressedId = id;
+    this.pressedT = 0.16;
   }
 
   resize(w, h) {
@@ -34,6 +41,34 @@ class ResultPanel {
 
   update(dt) {
     if (this.visible && this.animT < 1) this.animT = Math.min(1, this.animT + dt / 0.3);
+    if (this.pressedT > 0) {
+      this.pressedT -= dt;
+      if (this.pressedT <= 0) this.pressedId = null;
+    }
+  }
+
+  _drawStar(ctx, x, y, r, fill) {
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const rad = (i % 2 === 0) ? r : r * 0.46;
+      const a = -Math.PI / 2 + (i * Math.PI) / 5;
+      const px = x + Math.cos(a) * rad;
+      const py = y + Math.sin(a) * rad;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = fill;
+    ctx.fill();
+  }
+
+  _starScale(i) {
+    const at = 0.3 + i * 0.2;
+    if (this.animT < at) return 0;
+    const t = Math.min(1, (this.animT - at) / 0.25);
+    const s = 1.70158;
+    const u = t - 1;
+    return u * u * ((s + 1) * u + s) + 1;
   }
 
   _layout() {
@@ -89,21 +124,13 @@ class ResultPanel {
     if (this.info) {
       for (let s = 0; s < 3; s++) {
         const filled = s < (this.info.stars || 0);
-        const sx = this.w / 2 + (s - 1) * 34;
-        const sy = p.y + 70;
-        ctx.beginPath();
-        for (let i = 0; i < 10; i++) {
-          const rad = (i % 2 === 0) ? 14 : 6.5;
-          const a = -Math.PI / 2 + (i * Math.PI) / 5;
-          const px = sx + Math.cos(a) * rad;
-          const py = sy + Math.sin(a) * rad;
-          if (i === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
-        }
-        ctx.closePath();
-        ctx.fillStyle = filled ? '#f5b301' : 'rgba(0,0,0,0.12)';
-        ctx.fill();
+        const sc = filled ? this._starScale(s) : 1;
+        if (sc <= 0.01) continue;
+        this._drawStar(ctx, this.w / 2 + (s - 1) * 34, p.y + 70, 14 * sc,
+          filled ? '#f5b301' : 'rgba(0,0,0,0.12)');
       }
+      const statA = Math.max(0, Math.min(1, (this.animT - 0.8) / 0.2));
+      ctx.globalAlpha = statA;
       const sec = Math.round((this.info.costMs || 0) / 1000);
       const mm = Math.floor(sec / 60);
       const ss = ('0' + (sec % 60)).slice(-2);
@@ -111,19 +138,27 @@ class ResultPanel {
       ctx.fillStyle = '#7f8c8d';
       ctx.fillText('用时 ' + mm + ':' + ss + ' · 步数 ' + (this.info.moves || 0),
         this.w / 2, p.y + 100);
+      ctx.globalAlpha = 1;
     }
 
-    ctx.font = '15px sans-serif';
-    ctx.fillStyle = '#7f8c8d';
-    const shownCoins = this.doubled ? this.coins * 2 : this.coins;
-    let coinText = '金币 +' + shownCoins;
-    if (this.info && this.info.balance != null) coinText += ' · 余额 ' + this.info.balance;
-    ctx.fillText(coinText, this.w / 2, p.y + (this.info ? 124 : 80));
+    const coinA = Math.max(0, Math.min(1, (this.animT - 0.85) / 0.15));
+    if (coinA > 0) {
+      ctx.globalAlpha = coinA;
+      const pop = 1 + 0.3 * Math.sin(coinA * Math.PI);
+      ctx.font = 'bold ' + Math.round(15 * pop) + 'px sans-serif';
+      ctx.fillStyle = '#7f8c8d';
+      const shownCoins = this.doubled ? this.coins * 2 : this.coins;
+      let coinText = '金币 +' + shownCoins;
+      if (this.info && this.info.balance != null) coinText += ' · 余额 ' + this.info.balance;
+      ctx.fillText(coinText, this.w / 2, p.y + (this.info ? 124 : 80));
+      ctx.globalAlpha = 1;
+    }
 
     for (let i = 0; i < this.buttons.length; i++) {
       const b = this.buttons[i];
       const disabled = b.id === 'double' && this.doubled;
-      UISystem.roundRect(ctx, b.x, b.y, b.w, b.h, 12);
+      const pr = this.pressedId === b.id ? 3 : 0;
+      UISystem.roundRect(ctx, b.x + pr, b.y + pr, b.w - pr * 2, b.h - pr * 2, 12);
       ctx.fillStyle = disabled ? '#bdc3c7' : (b.primary ? '#27ae60' : '#f39c12');
       ctx.fill();
       ctx.fillStyle = '#ffffff';

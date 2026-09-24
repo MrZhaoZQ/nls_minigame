@@ -53,11 +53,20 @@ class ScrewManager {
     const rise = cfg.rise;
     const totalTurn = cfg.spinDeg * Math.PI / 180;
     const node = entry.node;
+    const base = entry.baseLocalPos;
 
-    this.tweens.tween(cfg.unscrewAnimTime, {
+    const tGrab = this.tweens.tween(0.09, {
+      onUpdate: (v) => {
+        const sink = Math.sin(v * Math.PI) * 0.035;
+        const wobble = Math.sin(v * Math.PI * 4) * 0.1;
+        node.position = [base[0], startY - sink, base[2]];
+        node.rotation = Mat3.fromAxisAngle([0, 1, 0], wobble);
+      }
+    });
+    tGrab.then(cfg.unscrewAnimTime, {
       easing: Easing.quadOut,
       onUpdate: (v) => {
-        node.position = [entry.baseLocalPos[0], startY + rise * v, entry.baseLocalPos[2]];
+        node.position = [base[0], startY + rise * v, base[2]];
         node.rotation = Mat3.fromAxisAngle([0, 1, 0], totalTurn * v);
       },
       onComplete: () => {
@@ -65,7 +74,8 @@ class ScrewManager {
         node.removeFromParent();
         if (doneCb) doneCb(entry);
       }
-    }).start();
+    });
+    tGrab.start();
     return true;
   }
 

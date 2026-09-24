@@ -263,7 +263,7 @@ test('collect 3 same color triggers match and clears them', () => {
   assertEq(g.slotManager.slots, []);
   const matches = g.events.filter(e => e.ev === Events.MATCH_MADE);
   assertEq(matches.length, 1);
-  assertEq(matches[0].d, { color: 'red', count: 3 });
+  assertEq(matches[0].d, { color: 'red', count: 3, combo: 1 });
   assert(!g.input.locked, 'input should be released');
   assertEq(g.game.state, 'win_pending');
 });

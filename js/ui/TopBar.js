@@ -16,7 +16,14 @@ class TopBar {
     this.hintEnabled = false;
     this.allDisabled = false;
     this.buttons = [];
+    this.pressedId = null;
+    this.pressedT = 0;
     this._layout();
+  }
+
+  setPressed(id) {
+    this.pressedId = id;
+    this.pressedT = 0.16;
   }
 
   resize(w, h, capsule) {
@@ -61,7 +68,12 @@ class TopBar {
     return null;
   }
 
-  update(dt) {}
+  update(dt) {
+    if (this.pressedT > 0) {
+      this.pressedT -= dt;
+      if (this.pressedT <= 0) this.pressedId = null;
+    }
+  }
 
   _drawButtonBase(ctx, b, enabled) {
     ctx.save();
@@ -161,7 +173,9 @@ class TopBar {
       const b = this.buttons[i];
       const enabled = this.isEnabled(b.id);
 
+      if (this.pressedId === b.id) b.r -= 3;
       this._drawButtonBase(ctx, b, enabled);
+      if (this.pressedId === b.id) b.r += 3;
 
       const iconColor = enabled ? 'rgba(45,55,70,0.9)' : 'rgba(45,55,70,0.3)';
       if (b.id === 'undo') {

@@ -3,8 +3,8 @@
 const Platform = require('../platform/Platform');
 
 const SFX_LIST = [
-  'sfx_screw_out', 'sfx_slot_in', 'sfx_match', 'sfx_collapse',
-  'sfx_warn', 'sfx_win', 'sfx_lose'
+  'sfx_screw_out', 'sfx_slot_in', 'sfx_match', 'sfx_match2', 'sfx_match3',
+  'sfx_collapse', 'sfx_warn', 'sfx_win', 'sfx_lose'
 ];
 
 class AudioManager {
@@ -22,11 +22,18 @@ class AudioManager {
       const ctx = Platform.createAudio('audio/' + id + '.wav');
       if (ctx) this.pool[id] = ctx;
     }
+    const bgm = Platform.createAudio('audio/bgm_main.wav');
+    if (bgm) {
+      bgm.loop = true;
+      bgm.volume = 0.35;
+      this.bgm = bgm;
+    }
   }
 
   unlock() {
     if (this.unlocked) return;
     this.unlocked = true;
+    this.playBgm();
   }
 
   play(id, opts) {
@@ -44,13 +51,33 @@ class AudioManager {
     }
   }
 
+  playMatch(combo) {
+    if (combo >= 3) this.play('sfx_match3');
+    else if (combo === 2) this.play('sfx_match2');
+    else this.play('sfx_match');
+  }
+
   playBgm() {
-    if (this.bgmOn || this.muted) return;
+    if (this.bgmOn || this.muted || !this.bgm) return;
     this.bgmOn = true;
+    try {
+      this.bgm.play();
+    } catch (e) {
+      return;
+    }
   }
 
   stopBgm() {
     this.bgmOn = false;
+    if (this.bgm && this.bgm.pause) {
+      try { this.bgm.pause(); } catch (e) { return; }
+    }
+  }
+
+  setMuted(m) {
+    this.muted = m;
+    if (m) this.stopBgm();
+    else this.playBgm();
   }
 
   bindGameEvents(bus) {
@@ -59,7 +86,7 @@ class AudioManager {
     bus.on(Events.SLOT_UPDATED, (d) => {
       if (d.arrivedIndex >= 0) this.play('sfx_slot_in');
     });
-    bus.on(Events.MATCH_MADE, () => this.play('sfx_match'));
+    bus.on(Events.MATCH_MADE, (d) => this.playMatch((d && d.combo) || 1));
     bus.on(Events.BOARD_COLLAPSED, () => this.play('sfx_collapse'));
     bus.on(Events.SLOT_FULL_WARNING, () => this.play('sfx_warn'));
     bus.on(Events.LEVEL_WIN, () => this.play('sfx_win'));
