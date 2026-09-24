@@ -64,11 +64,11 @@
 
 | 参数 | 规格 | 说明 |
 |---|---|---|
-| 水平旋转 | 0.6° / 每像素（`camera.yawSpeed`） | 单指左右滑动，绕 Y 轴 |
+| 水平旋转 | 0.4° / 每像素（`camera.yawSpeed`） | 单指左右滑动，绕 Y 轴；由 0.6 下调（用户反馈旋转头晕） |
 | 垂直旋转 | 0.4° / 每像素（`camera.pitchSpeed`） | 单指上下滑动，绕 X 轴 |
 | 垂直角度限制 | **-35° ~ +30°** | 上限正俯视角，下限防翻转穿模 |
 | 缩放范围 | 相机距中心 3 ~ 12（`distMin`/`distMax`） | 双指捏合，指数式（除以比例） |
-| 惯性 | 松手后角速度按 0.92/帧 衰减 | 仅水平方向（竖屏单手持握主轴） |
+| 惯性 | 松手后角速度按 0.85/帧 衰减 | 仅水平方向；由 0.92 收紧（防晕，缩短光流拖尾） |
 | 阻尼 | 0.15（帧率无关化：`1-(1-k)^frames`） | 目标角度平滑跟随 |
 | 初始视角 | yaw 35° / pitch 18° / dist 8 | CameraController 默认 |
 | 每关取景 | 目标 = 结构包围盒中心，距离 = clamp(包围球半径×2.4, 3, 12)，pitch 重置 12° | `GameManager.startLevel` |
@@ -123,7 +123,7 @@ Screw 状态（ScrewManager.ScrewState）：
 | 触发 | 板 `remaining` = 0 | `CollapseManager.queueCollapse(node)` 入队，队列非空期间输入锁 |
 | 警示 | 0.25s（`collapse.warnTime`） | 板透明度按 `|sin(3π·t)|` 闪烁 3 次；结束发 `COLLAPSE_WARN`（震动） |
 | 坠落 | 0.5s（`collapse.fallTime`，quadIn） | y 方向平落 2.5m（`fallDist`）+ 绕随机轴（y 分量 0.3~0.9）旋转 15°~30° |
-| 落地 | 瞬间 | 相机震动 `shake(0.1s, 0.02)` + 灰尘粒子（约 10 粒）+ 震动 + 音效（`BOARD_COLLAPSED`） |
+| 落地 | 瞬间 | 相机震动 `shake(camera.shakeTime=0.1s, camera.shakeIntensity=0.01)` + 灰尘粒子（约 10 粒）+ 震动 + 音效（`BOARD_COLLAPSED`） |
 | 淡出 | 0.22s | 板淡出后移出场景图 → `onBoardGone` |
 | 解锁 | 淡出完成 | 覆盖该板的螺丝逐个解锁（`coveredBy` 计数归零者置 `unlocked`），并发 `BOARD_COLLAPSED` 含解锁数；该板相关撤销操作从栈中清除 |
 | 串行间隔 | ≥0.2s（`queueGap`） | 队列中下一块板开始警示 |
@@ -701,8 +701,9 @@ node scripts/headlessPlaythrough.js   # 30 关无头打通（贪心玩家 + 救�
 
 ```js
 const GameConfig = {
-  camera: { yawSpeed: 0.6, pitchSpeed: 0.4, pitchMin: -35, pitchMax: 30,
-            distMin: 3, distMax: 12, damping: 0.15, inertia: 0.92 },
+  camera: { yawSpeed: 0.4, pitchSpeed: 0.4, pitchMin: -35, pitchMax: 30,
+            distMin: 3, distMax: 12, damping: 0.15, inertia: 0.85,
+            shakeTime: 0.1, shakeIntensity: 0.01 },
   input: { tapThreshold: 10, tapMaxTime: 300 },
   screw: { unscrewAnimTime: 0.35, flyTime: 0.15, rise: 0.5, spinDeg: 540,
            headRadius: 0.16, headHeight: 0.1, shaftRadius: 0.06, shaftLength: 0.35 },

@@ -1,8 +1,9 @@
 'use strict';
 
 const GameConfig = {
-  camera: { yawSpeed: 0.6, pitchSpeed: 0.4, pitchMin: -35, pitchMax: 30,
-            distMin: 3, distMax: 12, damping: 0.15, inertia: 0.92 },
+  camera: { yawSpeed: 0.4, pitchSpeed: 0.4, pitchMin: -35, pitchMax: 30,
+            distMin: 3, distMax: 12, damping: 0.15, inertia: 0.85,
+            shakeTime: 0.1, shakeIntensity: 0.01 },
   input: { tapThreshold: 10, tapMaxTime: 300 },
   screw: { unscrewAnimTime: 0.35, flyTime: 0.15, rise: 0.5, spinDeg: 540,
            headRadius: 0.16, headHeight: 0.1, shaftRadius: 0.06, shaftLength: 0.35 },

@@ -93,7 +93,7 @@ function bootstrap() {
   const collapse = new collapseMgr(scene, tweens, {
     onWarn: () => app.bus.emit('COLLAPSE_WARN', {}),
     onLanding: (boardId) => {
-      camCtrl.shake(0.1, 0.02);
+      camCtrl.shake(GameConfig.camera.shakeTime, GameConfig.camera.shakeIntensity);
       const b = game.boardById[boardId];
       if (b && b.node.parent) {
         const stamp = scene.beginFrame();
