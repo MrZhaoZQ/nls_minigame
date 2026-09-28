@@ -17,7 +17,7 @@ const REQUIRED = [
   'sfx_lose.wav',
   'bgm_main.wav'
 ];
-const BUDGET_OVERRIDES = { 'bgm_main.wav': 380 * 1024 };
+const BUDGET_OVERRIDES = { 'bgm_main.wav': 600 * 1024 };
 
 section('Audio assets');
 

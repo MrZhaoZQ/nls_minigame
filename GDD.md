@@ -318,7 +318,7 @@ module.exports = {
 
 ### 5.1 音频清单（9 音效 + 1 BGM，全部程序化合成）
 
-> 资产由 `scripts/make_audio.py`（numpy）合成：**统一 22050Hz 单声道 16bit WAV**（BGM 同为 22050，勿用其他采样率——安卓 InnerAudioContext 对非常规采样率 WAV 兼容差）；音效各 <100KB，BGM 8s 循环 ≈345KB（预算 380KB）；`test/audio.test.js` 守护「10 文件存在 / 体积预算 / RIFF 单声道 22050Hz / BGM 韧性」。重生成：`python3 scripts/make_audio.py`。
+> 资产由 `scripts/make_audio.py`（numpy）合成：**统一 22050Hz 单声道 16bit WAV**（BGM 同为 22050，勿用其他采样率——安卓 InnerAudioContext 对非常规采样率 WAV 兼容差）；音效各 <100KB，BGM 12.8s 无缝循环 ≈551KB（预算 600KB）；`test/audio.test.js` 守护「10 文件存在 / 体积预算 / RIFF 单声道 22050Hz / BGM 韧性」。重生成：`python3 scripts/make_audio.py`。
 
 | ID | 触发 | 合成方向 |
 |---|---|---|
@@ -328,7 +328,7 @@ module.exports = {
 | `sfx_collapse` | 板坍塌落地（`BOARD_COLLAPSED`） | 沉闷木头落地 + 低频 |
 | `sfx_warn` | 满槽预警（`SLOT_FULL_WARNING`） | 311Hz 方波双短音 |
 | `sfx_win` / `sfx_lose` | 通关 / 失败结算 | 琶音上行 / 下行 |
-| `bgm_main` | 首触点解锁后循环播放（8s Lo-fi 循环段，音量 0.35） | 四和弦 pad + 低鼓 + 黑胶噪声 |
+| `bgm_main` | 首触点解锁后循环播放（**12.8s 无缝循环**，75bpm Lo-fi，音量 0.35） | 75bpm 四小节下行和声（Fmaj7→Em7→Dm7→Cmaj7）：Rhodes 电钢 + 贝斯 + 软底鼓/刷子军鼓/摇摆踩镲 + 稀疏五声铃铛旋律 + 轻黑胶底噪；结尾 1s 线性交叉淡化实现无缝循环 |
 
 - 启动时全部预创建 InnerAudioContext；**首次触点才解锁播放**（微信策略，在 `onTap` 首调 `unlock()`，同时启动 BGM）；
 - 音效单条播放失败即标记 `_failed` 静默降级，不影响游戏；暂停面板可全局静音（运行时开关，静音联动停/复 BGM）；
@@ -561,7 +561,7 @@ tick(): now/dt(钳制 ≤0.05) → 慢帧统计 → [非冻结] 相机/补间/�
 
 | 指标 | 预算 | 现状 |
 |---|---|---|
-| 首包体积 | ≤2MB | 代码+30 关+9 音效+1 BGM 合计 ≈950KB，余量充足 |
+| 首包体积 | ≤2MB | 代码+30 关+9 音效+1 BGM 合计 ≈1.15MB，余量充足 |
 | 单帧可见面片 | ≤3000（2D 填充路径） | 最大关（12 板×50 螺丝）约 1700 面片（板 6 面/个，螺丝 33 面/个，剔除前） |
 | 同屏粒子 | ≤300（降级 150） | 收集 10 粒/次、坍塌灰尘 10 粒/次 |
 | 常驻内存 | ≤150MB | 无引擎，远低于预算 |

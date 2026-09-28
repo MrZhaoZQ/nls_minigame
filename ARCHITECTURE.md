@@ -15,7 +15,7 @@ minigame/
 ├─ logo.png                   # 144x144 图标（木板+红螺丝）
 ├─ GDD.md                     # 游戏设计文档（v3.0 原生版）
 ├─ ARCHITECTURE.md            # 本文件
-├─ audio/                     # 9 音效 + 1 BGM 程序化合成（统一 22050Hz 单声道 WAV；音效 <100KB，BGM 8s 循环 ≈345KB）
+├─ audio/                     # 9 音效 + 1 BGM 程序化合成（统一 22050Hz 单声道 WAV；音效 <100KB，BGM 12.8s 无缝循环 ≈551KB）
 ├─ js/
 │  ├─ main.js                 # 【组装层】bootstrap()：创建全部模块、接线、主循环、输入路由
 │  ├─ config/GameConfig.js    # 【唯一调参地】相机/输入/螺丝/槽位/坍塌/广告/渲染/颜色/木板
@@ -216,7 +216,7 @@ node scripts/headlessPlaythrough.js  # 30 关无头打通（贪心玩家）
 | bootstrap.test | 无头端到端：bootstrap→模拟点击通关→面板进下一关；金币购买撤销/提示走弹窗确认（含取消分支） |
 | ad.test | mock 发奖/冷启动/冷却/每关限次/日限/真广告 isEnded |
 | share.test | 分享发奖/取消不发/冷却/单关限次/标题模板 |
-| audio.test | 10 个 wav 存在/体积预算(音效<100KB·BGM<380KB)/RIFF 单声道 22050Hz + AudioManager BGM 韧性（onError 重建/canplay 补播/静音联动/ensureBgm） |
+| audio.test | 10 个 wav 存在/体积预算(音效<100KB·BGM<600KB)/RIFF 单声道 22050Hz + AudioManager BGM 韧性（onError 重建/canplay 补播/静音联动/ensureBgm） |
 | ui.test | 胶囊避让/按钮对齐/撤销按钮金币置灰规则/帮助面板滚动惯性/槽位对称留白/重置 |
 | meta.test | 存档/引导推进/选关/暂停/金币收支/失败面板条件展示/按钮不越界/Toast |
 | launch.test | 被动分享注册/冷启动与热启动 query 直达/超解锁回落/回归遮罩 |
@@ -264,7 +264,7 @@ PIL 脚本现画：`logo.png` 为 4 倍超采样+圆角 mask+floodfill 裁角；
 | 项 | 现状 | 说明 |
 |---|---|---|
 | 埋点 Analytics | `Platform.reportEvent` 未接线 | GDD 6.3 事件表已定，补监听器即可 |
-| BGM 兼容 | 已接入（8s 循环 0.35 音量；onCanplay 补播 + onError 重建重播 ≤3 次 + onShow ensureBgm，专治安卓无声/不恢复） | 低端安卓若仍无声，素材转 mp3/m4a 再验 |
+| BGM 兼容 | 已接入（12.8s 无缝循环 0.35 音量；onCanplay 补播 + onError 重建重播 ≤3 次 + onShow ensureBgm，专治安卓无声/不恢复） | 低端安卓若仍无声，素材转 mp3/m4a 再验 |
 | 自动聚焦镜头 | 未做（GDD 二期） | CameraController 留 `focusOn()` |
 | 提示按钮 | 常驻可用（每关 1 次） | 卡关 60s 另有 Toast 引导；目标仅限当前视角可见螺丝 |
 | 物理坍塌 Pro | 未做 | 原生路线无物理引擎，属 Cocos 迁移项 |
