@@ -15,7 +15,7 @@ minigame/
 ├─ logo.png                   # 144x144 图标（木板+红螺丝）
 ├─ GDD.md                     # 游戏设计文档（v3.0 原生版）
 ├─ ARCHITECTURE.md            # 本文件
-├─ audio/                     # 7 个程序化合成音效（22050Hz 单声道 WAV，各 <100KB）
+├─ audio/                     # 9 音效 + 1 BGM 程序化合成（统一 22050Hz 单声道 WAV；音效 <100KB，BGM 8s 循环 ≈345KB）
 ├─ js/
 │  ├─ main.js                 # 【组装层】bootstrap()：创建全部模块、接线、主循环、输入路由
 │  ├─ config/GameConfig.js    # 【唯一调参地】相机/输入/螺丝/槽位/坍塌/广告/渲染/颜色/木板
@@ -51,10 +51,10 @@ minigame/
 │  │  ├─ TweenManager.js      # 补间引擎（to/then 链/delay；Easing 表）
 │  │  └─ SaveManager.js       # 进度/扩容/广告计数 持久化（wx storage）
 │  ├─ ad/AdManager.js         # 激励视频封装 + 频控；unitId 为空 = mock 直发奖励
-│  ├─ audio/AudioManager.js   # 预载 audio/*.wav；首次交互 unlock；bindGameEvents
+│  ├─ audio/AudioManager.js   # 预载 audio/*.wav；首次交互 unlock；bindGameEvents；BGM 循环（onCanplay 补播 / onError 重建≤3次 / ensureBgm 回前台恢复）
 │  └─ ui/                     # Canvas 立即式 UI（绘制 + 命中测试）
 │     ├─ UISystem.js           # roundRect / 螺丝图标 / 颜色表
-│     ├─ TopBar.js             # 顶栏：标题+剩余数+三按钮（撤销/提示/帮助），胶囊避让布局
+│     ├─ TopBar.js             # 顶栏：标题+剩余数+四按钮（撤销/提示/帮助/暂停），胶囊避让布局
 │     ├─ SlotUI.js             # 底部暂存槽（对称留白、入槽飞行、消除闪光、LEVEL_LOADED 重置）
 │     ├─ ResultPanel.js        # 胜利面板（下一关 / 看视频翻倍）
 │     ├─ FailPanel.js          # 失败面板（重试 / 看视频撤回 / 看视频清3颗）
@@ -68,7 +68,7 @@ minigame/
 ├─ scripts/
 │  ├─ buildLevels.js           # 生成 30 关（生成器+校验器管线，seed 搜索）→ levelData/
 │  ├─ headlessPlaythrough.js   # 无头全量打通验证（模拟贪心玩家）
-│  └─ make_audio.py            # numpy 程序化合成 7 个 wav
+│  └─ make_audio.py            # numpy 程序化合成 9 音效 + 1 BGM（统一 22050Hz）
 └─ test/                       # Node 单测（harness 微型断言库；run.js 汇总）
 ```
 
@@ -194,7 +194,7 @@ main.js 按 mode 选择 `rewardProvider`（`ShareManager` 或 `AdManager`），�
 
 ---
 
-## 6. 测试体系（test/，当前 141 项）
+## 6. 测试体系（test/，当前 149 项）
 
 ```
 node test/run.js                 # 全量
@@ -216,7 +216,7 @@ node scripts/headlessPlaythrough.js  # 30 关无头打通（贪心玩家）
 | bootstrap.test | 无头端到端：bootstrap→模拟点击通关→面板进下一关；金币购买撤销/提示走弹窗确认（含取消分支） |
 | ad.test | mock 发奖/冷启动/冷却/每关限次/日限/真广告 isEnded |
 | share.test | 分享发奖/取消不发/冷却/单关限次/标题模板 |
-| audio.test | 7 个 wav 存在/<100KB/RIFF 单声道 22050Hz |
+| audio.test | 10 个 wav 存在/体积预算(音效<100KB·BGM<380KB)/RIFF 单声道 22050Hz + AudioManager BGM 韧性（onError 重建/canplay 补播/静音联动/ensureBgm） |
 | ui.test | 胶囊避让/按钮对齐/撤销按钮金币置灰规则/帮助面板滚动惯性/槽位对称留白/重置 |
 | meta.test | 存档/引导推进/选关/暂停/金币收支/失败面板条件展示/按钮不越界/Toast |
 | launch.test | 被动分享注册/冷启动与热启动 query 直达/超解锁回落/回归遮罩 |
@@ -264,9 +264,9 @@ PIL 脚本现画：`logo.png` 为 4 倍超采样+圆角 mask+floodfill 裁角；
 | 项 | 现状 | 说明 |
 |---|---|---|
 | 埋点 Analytics | `Platform.reportEvent` 未接线 | GDD 6.3 事件表已定，补监听器即可 |
-| BGM | `playBgm()` 空实现 | 需素材后补 InnerAudioContext 循环 |
+| BGM 兼容 | 已接入（8s 循环 0.35 音量；onCanplay 补播 + onError 重建重播 ≤3 次 + onShow ensureBgm，专治安卓无声/不恢复） | 低端安卓若仍无声，素材转 mp3/m4a 再验 |
 | 自动聚焦镜头 | 未做（GDD 二期） | CameraController 留 `focusOn()` |
-| 提示按钮 | 卡关 60s 才亮 | 若数据需要可改常驻（main 卡关检测段） |
+| 提示按钮 | 常驻可用（每关 1 次） | 卡关 60s 另有 Toast 引导；目标仅限当前视角可见螺丝 |
 | 物理坍塌 Pro | 未做 | 原生路线无物理引擎，属 Cocos 迁移项 |
 | 无尽模式 | 未做 | 生成器现成，加循环与计分即可 |
 
@@ -306,5 +306,6 @@ PIL 脚本现画：`logo.png` 为 4 倍超采样+圆角 mask+floodfill 裁角；
 | 槽位残留旧螺丝 | `LEVEL_LOADED` 是否被 SlotUI 收到（重置唯一入口） |
 | 广告不弹 | AdManager.canShow 的 reason（coldStart/cooldown/dailyLimit/perLevel） |
 | 音效不响 | 是否 unlock（首次点击）→ audio/*.wav 是否存在 → _failed 标记 |
+| BGM 安卓不响 | 素材是否 22050Hz（采样率异常是安卓无声首因）→ `bgmOn`/`muted` 状态 → `_bgmAttempts` 是否达 3 放弃 → ensureBgm 是否被 onShow 调到 |
 | 关卡死局 | `node scripts/headlessPlaythrough.js` 复现 → validator runs 提高 → 换 seed/加槽 |
 | 顶栏被胶囊挡 | `Platform.getMenuButtonBoundingClientRect` 真机返回值 vs 兜底矩形 |

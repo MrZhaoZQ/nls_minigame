@@ -180,7 +180,7 @@ def sfx_lose():
 
 
 def bgm_lofi():
-    sr = 16000
+    sr = 22050
     dur = 8.0
     m = int(dur * sr)
     t = np.arange(m) / sr

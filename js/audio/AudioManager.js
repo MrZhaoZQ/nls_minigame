@@ -13,6 +13,8 @@ class AudioManager {
     this.unlocked = false;
     this.muted = false;
     this.bgmOn = false;
+    this.bgm = null;
+    this._bgmAttempts = 0;
     this._failed = {};
   }
 
@@ -22,12 +24,41 @@ class AudioManager {
       const ctx = Platform.createAudio('audio/' + id + '.wav');
       if (ctx) this.pool[id] = ctx;
     }
+    this._initBgm();
+  }
+
+  _initBgm() {
     const bgm = Platform.createAudio('audio/bgm_main.wav');
-    if (bgm) {
-      bgm.loop = true;
-      bgm.volume = 0.35;
-      this.bgm = bgm;
+    if (!bgm) return;
+    bgm.loop = true;
+    bgm.volume = 0.35;
+    this.bgm = bgm;
+    if (bgm.onCanplay) {
+      bgm.onCanplay(() => {
+        if (this.bgmOn && !this.muted && this.bgm === bgm) this._safePlay(bgm);
+      });
     }
+    if (bgm.onError) {
+      bgm.onError(() => {
+        if (this.bgm !== bgm || !this.bgmOn) return;
+        this._bgmAttempts++;
+        if (this._bgmAttempts >= 3) { this.bgmOn = false; return; }
+        if (bgm.destroy) { try { bgm.destroy(); } catch (e) {} }
+        this._initBgm();
+        if (this.bgm) this._safePlay(this.bgm);
+      });
+    }
+  }
+
+  _safePlay(ctx) {
+    try {
+      const p = ctx.play();
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) {}
+  }
+
+  ensureBgm() {
+    if (this.bgmOn && !this.muted && this.bgm) this._safePlay(this.bgm);
   }
 
   unlock() {
@@ -60,11 +91,8 @@ class AudioManager {
   playBgm() {
     if (this.bgmOn || this.muted || !this.bgm) return;
     this.bgmOn = true;
-    try {
-      this.bgm.play();
-    } catch (e) {
-      return;
-    }
+    this._bgmAttempts = 0;
+    this._safePlay(this.bgm);
   }
 
   stopBgm() {

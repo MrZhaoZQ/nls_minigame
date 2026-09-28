@@ -1,4 +1,4 @@
-# 《拧螺丝啦》游戏设计文档 (GDD)
+﻿# 《拧螺丝啦》游戏设计文档 (GDD)
 
 **原生微信小游戏版 v3.1** ｜ 目标读者：策划 / 程序 / AI 编程助手
 
@@ -21,7 +21,7 @@
 > 4. 关卡由 20 → **30**，生成器阶段数值、校验器规则（3 组随机种子 ×100 次 + 1 次确定性贪心、自动 +1 槽）按实现修订；
 > 5. 拾取/遮挡方案按实现修订：螺丝头**球体命中** + 上层板**footprint 核心区遮挡判定**（射线-OBB 求交保留为数学工具与测试）；
 > 6. 撤销改为**快照式**（还原入槽前槽位数组），失败面板救援为「撤回一步 / 移出 3 颗」；
-> 7. 附录 A（GameConfig）与附录 B（运行/验收）同步至当前真实配置与测试现状（141 项断言全绿）。
+> 7. 附录 A（GameConfig）与附录 B（运行/验收）同步至当前真实配置与测试现状（149 项断言全绿）。
 >
 > 维护向信息（模块装配顺序、输入路由细节、排障速查）见配套文档 `ARCHITECTURE.md`；本文件承载设计意图、玩法规格、数值与验收标准。
 
@@ -316,23 +316,26 @@ module.exports = {
 
 ## 5. 视听与反馈系统
 
-### 5.1 音效清单（7 个，全部程序化合成）
+### 5.1 音频清单（9 音效 + 1 BGM，全部程序化合成）
 
-> 资产由 `scripts/make_audio.py`（numpy）合成：22050Hz 单声道 16bit WAV，各文件 <100KB（实测 5~44KB）；`test/audio.test.js` 守护「7 个文件存在 / <100KB / RIFF 单声道 22050Hz」。重生成：`python3 scripts/make_audio.py`。
+> 资产由 `scripts/make_audio.py`（numpy）合成：**统一 22050Hz 单声道 16bit WAV**（BGM 同为 22050，勿用其他采样率——安卓 InnerAudioContext 对非常规采样率 WAV 兼容差）；音效各 <100KB，BGM 8s 循环 ≈345KB（预算 380KB）；`test/audio.test.js` 守护「10 文件存在 / 体积预算 / RIFF 单声道 22050Hz / BGM 韧性」。重生成：`python3 scripts/make_audio.py`。
 
 | ID | 触发 | 合成方向 |
 |---|---|---|
 | `sfx_screw_out` | 螺丝收集（`SCREW_COLLECTED`） | 金属摩擦 + 咔嗒，清脆高频 |
 | `sfx_slot_in` | 入槽落位（`SLOT_UPDATED` 且 arrivedIndex ≥0） | 短促「嗒」 |
-| `sfx_match` | 三消（`MATCH_MADE`） | 升调「叮」 |
+| `sfx_match` / `sfx_match2` / `sfx_match3` | 三消（`MATCH_MADE`），按连消档位 `playMatch(combo)` 1/2/≥3 选层 | 升调「叮」三连（1245/1480/1760Hz） |
 | `sfx_collapse` | 板坍塌落地（`BOARD_COLLAPSED`） | 沉闷木头落地 + 低频 |
 | `sfx_warn` | 满槽预警（`SLOT_FULL_WARNING`） | 311Hz 方波双短音 |
-| `sfx_win` | 通关（`LEVEL_WIN`） | 琶音上行 |
-| `sfx_lose` | 失败（`LEVEL_LOSE`） | 琶音下行 |
+| `sfx_win` / `sfx_lose` | 通关 / 失败结算 | 琶音上行 / 下行 |
+| `bgm_main` | 首触点解锁后循环播放（8s Lo-fi 循环段，音量 0.35） | 四和弦 pad + 低鼓 + 黑胶噪声 |
 
-- 启动时全部预创建 InnerAudioContext；**首次触点才解锁播放**（微信策略，在 `onTap` 首调 `unlock()`）；
-- 单条播放失败即标记 `_failed` 静默降级，不影响游戏；暂停面板可全局静音（运行时开关）；
-- **BGM 暂未实现**（`playBgm()` 为空壳，见第 10 节待办）。
+- 启动时全部预创建 InnerAudioContext；**首次触点才解锁播放**（微信策略，在 `onTap` 首调 `unlock()`，同时启动 BGM）；
+- 音效单条播放失败即标记 `_failed` 静默降级，不影响游戏；暂停面板可全局静音（运行时开关，静音联动停/复 BGM）；
+- **BGM 安卓韧性**（iOS 能响、安卓无声的根因对策）：
+  1. `onCanplay` 门控——安卓上 `play()` 可能早于元数据就绪被静默丢弃，就绪回调到达时若 `bgmOn` 仍在则补播；
+  2. `onError` 自动重建——安卓解码失败（如 errCode 10002）时销毁旧上下文、重建并重播，最多 3 次，不冒泡不打扰玩家；
+  3. `ensureBgm()` 挂在 `Platform.onShow`——安卓 InnerAudioContext 切后台被暂停后**不会自动恢复**（iOS 会），回前台时按需补播。
 
 ### 5.2 视觉反馈清单
 
@@ -473,7 +476,7 @@ module.exports = {
 | `TweenManager` | 补间引擎 | `tween` `delay` `update` |
 | `SaveManager` | 进度/星级/金币/扩容/广告与分享计数持久化 | 见第 3.3 节 |
 | `AdManager` / `ShareManager` | 同接口奖励提供方（频控 + 发奖） | `show` `canShow` `setLevel` |
-| `AudioManager` | 7 音效预载/解锁/播放/静音 + 事件绑定 | `preload` `unlock` `play` `bindGameEvents` |
+| `AudioManager` | 9 音效预载/解锁/播放/静音 + 事件绑定；BGM 循环（canplay 补播/错误重建/ensureBgm） | `preload` `unlock` `play` `playMatch` `playBgm` `ensureBgm` `setMuted` `bindGameEvents` |
 | UI（12 件套） | `UISystem`（圆角矩形/螺丝图标/色表）、`TopBar`、`SlotUI`、`ResultPanel`、`FailPanel`、`HelpPanel`、`HintMarker`、`Toast`、`Tutorial`、`LevelSelect`、`PausePanel`、`ParticleFX` | `show/hide/update/draw/hitTest/resize` |
 
 ### 7.4 对局状态机
@@ -558,7 +561,7 @@ tick(): now/dt(钳制 ≤0.05) → 慢帧统计 → [非冻结] 相机/补间/�
 
 | 指标 | 预算 | 现状 |
 |---|---|---|
-| 首包体积 | ≤2MB | 代码+30 关+7 音效合计 ≈400KB，余量充足 |
+| 首包体积 | ≤2MB | 代码+30 关+9 音效+1 BGM 合计 ≈950KB，余量充足 |
 | 单帧可见面片 | ≤3000（2D 填充路径） | 最大关（12 板×50 螺丝）约 1700 面片（板 6 面/个，螺丝 33 面/个，剔除前） |
 | 同屏粒子 | ≤300（降级 150） | 收集 10 粒/次、坍塌灰尘 10 粒/次 |
 | 常驻内存 | ≤150MB | 无引擎，远低于预算 |
@@ -578,7 +581,7 @@ tick(): now/dt(钳制 ≤0.05) → 慢帧统计 → [非冻结] 相机/补间/�
 
 ## 9. 质量保障
 
-### 9.1 测试体系（`test/`，当前 **141 项断言全绿**）
+### 9.1 测试体系（`test/`，当前 **149 项断言全绿**）
 
 ```
 node test/run.js                      # 全量（16 套件）
@@ -646,7 +649,7 @@ node scripts/headlessPlaythrough.js   # 30 关无头打通（贪心玩家 + 救�
 |---|---|---|
 | 埋点接线 | `Platform.reportEvent` 就绪、无调用点 | 按 6.5 事件表补监听即可 |
 | 切正式广告 | `ad.unitId` 空、`mode:'share'` | 流量主开通后填位 + 改 `'ad'`，四个奖励位与文案自动切换 |
-| BGM | `playBgm()` 空实现 | 需素材（建议 ≤500KB 循环段）后接 InnerAudioContext |
+| BGM 安卓兼容加固 | 已实现 8s 循环 BGM + 三重韧性（onCanplay 补播 / onError 重建重播 / onShow ensureBgm，见 5.1） | 若低端安卓仍无声，素材转 mp3/m4a 再验（wav→mp3 兼容性更好） |
 | 音效开关持久化 | 仅运行时状态 | 落 `SaveManager` 一键补 |
 | 异形板型投入关卡 | `Board_L`/`Board_Gear` 渲染/加载已支持，生成器未产出 | 扩 `generator`（footprint/孔位网格同步校验器）+ 关卡混搭 |
 | 自动聚焦镜头 | `focusOn()` 预留未接线 | 点击遮挡区时提示性转视角 |
@@ -665,7 +668,7 @@ node scripts/headlessPlaythrough.js   # 30 关无头打通（贪心玩家 + 救�
 | 3 | 低端机 Canvas2D 帧率不达标 | 中 | 降帧保护（粒子减半+关震动）、dt 钳制、顶点缓存；极端低模螺丝为备用项 |
 | 4 | 「分享得奖励」触碰诱导分享红线 | **高** | 当前文案「邀好友」弱化利益；频控严格（5s/30 日）；**流量主开通后第一优先级切 `mode:'ad'`** |
 | 5 | 三消「卡死局」引发负面情绪 | 中 | 校验器保证 3 组随机 ×100 次贪心零死局（不足自动 +1 槽）；满槽前预警（≥4）；失败面板三路救援（撤销/清 3/金币） |
-| 6 | 无构建纯 JS 项目规模膨胀难维护 | 中 | 分层红线（7.2）+ 141 项测试 + 每模块职责表；`gameplay/levels/core/math` 禁触运行环境 |
+| 6 | 无构建纯 JS 项目规模膨胀难维护 | 中 | 分层红线（7.2）+ 149 项测试 + 每模块职责表；`gameplay/levels/core/math` 禁触运行环境 |
 | 7 | 广告位未开通导致变现空窗 | 低 | share 通道过渡中；mock 保证全流程可玩；切广告为纯配置操作（见 `ARCHITECTURE.md`「接真广告/上线」小节） |
 | 8 | 分享图审核不通过 | 低 | 使用后台已审图 + `imageUrlId`；设计源稿与线上图分离 |
 
@@ -690,8 +693,8 @@ node scripts/headlessPlaythrough.js   # 30 关无头打通（贪心玩家 + 救�
 ### 模板 5：新增一个结算面板变体（如满星彩蛋）
 > 参照 `ui/ResultPanel.js`（show/hide/update/hitTest/draw/_layout 五件套 + resize），在不改其职责的前提下：满 3 星且用时低于该关历史最佳时，面板顶部加一条庆祝文案与粒子（`ParticleFX.burst`）。布局走 `GameConfig` 新增色值，禁止硬编码；`test/ui.test.js` 补命中与绘制冒烟。
 
-### 模板 6：音效开关落盘 + BGM 接入
-> `AudioManager.muted` 目前仅运行时。请：① 落 `SaveManager`（键 `screwmaster_sound`，默认开）；② `playBgm()` 接 8s 循环段（`audio/bgm_main.wav`，占位即可），首触点解锁后播放、静音联动，`test/audio.test.js` 相应放宽为 8 文件校验。
+### 模板 6：音效开关落盘
+> `AudioManager.muted` 目前仅运行时。请落 `SaveManager`（键 `screwmaster_sound`，默认开）：启动时读取恢复；`setMuted` 写盘；暂停面板/选关页联动显示。BGM 已实现（8s 循环 `audio/bgm_main.wav`，静音联动停/复），补测试：杀进程重进后静音态保持。
 
 ---
 
@@ -744,7 +747,7 @@ const GameConfig = {
 ## 附录 B：本地运行与上线清单
 
 ```
-# 全部单测（16 套件、141 项断言）
+# 全部单测（16 套件、149 项断言）
 node test/run.js
 
 # 30 关无头打通验证（贪心玩家 + 救援配额，全绿退出码 0）
@@ -753,7 +756,7 @@ node scripts/headlessPlaythrough.js
 # 重出 30 关（生成器 + 校验器管线，种子搜索预算 6000，覆盖 js/levels/levelData/ 并重写 index.js）
 node scripts/buildLevels.js
 
-# 重新合成音效（22050Hz 单声道，7 个文件）
+# 重新合成音效与 BGM（统一 22050Hz 单声道，10 个文件）
 python3 scripts/make_audio.py
 
 # 微信开发者工具

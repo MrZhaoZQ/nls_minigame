@@ -633,6 +633,7 @@ function bootstrap() {
     app.hiddenAt = Platform.now();
   });
   Platform.onShow((res) => {
+    audio.ensureBgm();
     const q = res && res.query;
     const qLevel = parseInt(q && q.level, 10);
     if (qLevel >= 1 && SaveManager.getTutorialDone()) {
