@@ -172,6 +172,31 @@ const Platform = {
     }
   },
 
+  createGameClubButton(opts) {
+    if (_mock) {
+      if (_mock.createGameClubButton) return _mock.createGameClubButton(opts);
+      const btn = {
+        style: opts && opts.style,
+        visible: false,
+        show() { this.visible = true; },
+        hide() { this.visible = false; },
+        onTap() {},
+        onError() {},
+        destroy() {}
+      };
+      _mock.clubButton = btn;
+      return btn;
+    }
+    if (hasWx() && wx.createGameClubButton) {
+      try {
+        return wx.createGameClubButton(opts);
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  },
+
   getLaunchOptions() {
     if (_mock && _mock.getLaunchOptions) return _mock.getLaunchOptions();
     if (_mock) return {};

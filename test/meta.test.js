@@ -7,6 +7,7 @@ const Tutorial = require('../js/ui/Tutorial');
 const LevelSelect = require('../js/ui/LevelSelect');
 const PausePanel = require('../js/ui/PausePanel');
 const Toast = require('../js/ui/Toast');
+const GameClubEntry = require('../js/ui/GameClubEntry');
 
 section('SaveManager meta');
 
@@ -129,6 +130,44 @@ test('fail panel keeps all buttons inside panel bounds', () => {
       assert(b.y >= f.panel.y && b.y + b.h <= f.panel.y + f.panel.h, 'button within panel height');
     }
   });
+});
+
+section('GameClubEntry');
+
+test('showAt positions and shows native button', () => {
+  const created = [];
+  const fakePlatform = {
+    createGameClubButton: (opts) => {
+      const b = {
+        style: opts.style, visible: false,
+        show() { this.visible = true; },
+        hide() { this.visible = false; },
+        onTap() {}, destroy() {}
+      };
+      created.push(b);
+      return b;
+    }
+  };
+  const entry = new GameClubEntry({ platform: fakePlatform });
+  entry.showAt(16, 66, 100, 36);
+  assertEq(created.length, 1);
+  const btn = created[0];
+  assertEq(btn.style.left, 16);
+  assertEq(btn.style.top, 66);
+  assertEq(btn.visible, true);
+  entry.hide();
+  assertEq(btn.visible, false);
+  entry.showAt(20, 30, 220, 36);
+  assertEq(btn.style.left, 20);
+  assertEq(btn.style.width, 220);
+  assertEq(btn.visible, true);
+});
+
+test('graceful when API unavailable', () => {
+  const entry = new GameClubEntry({ platform: {} });
+  entry.showAt(0, 0, 100, 36);
+  assertEq(entry.available, false);
+  entry.hide();
 });
 
 section('Toast');

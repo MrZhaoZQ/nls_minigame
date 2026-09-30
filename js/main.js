@@ -22,6 +22,7 @@ const HelpPanel = require('./ui/HelpPanel');
 const HintMarker = require('./ui/HintMarker');
 const Toast = require('./ui/Toast');
 const Tutorial = require('./ui/Tutorial');
+const GameClubEntry = require('./ui/GameClubEntry');
 const LevelSelect = require('./ui/LevelSelect');
 const PausePanel = require('./ui/PausePanel');
 const AdManager = require('./ad/AdManager');
@@ -146,6 +147,8 @@ function bootstrap() {
   resultPanel.doubleLabel = rewardWord + ' 金币翻倍';
   const toast = new Toast();
   const tutorial = new Tutorial();
+  const clubEntry = new GameClubEntry();
+  app.clubEntry = clubEntry;
   const levelSelect = new LevelSelect(info.width, info.height, capsuleRect);
   const pausePanel = new PausePanel(info.width, info.height);
 
@@ -214,6 +217,21 @@ function bootstrap() {
 
   function isFrozen() {
     return pausePanel.visible || levelSelect.visible;
+  }
+
+  function syncClubEntry() {
+    const visible = levelSelect.visible || resultPanel.visible || pausePanel.visible;
+    if (!visible) {
+      if (clubEntry.shown) clubEntry.hide();
+      return;
+    }
+    const cap = app.capsule;
+    const x = app.screen.width - cap.right;
+    const y = cap.top;
+    const key = x + ',' + y + ',' + cap.width + ',' + cap.height;
+    if (key !== clubEntry._posKey) {
+      clubEntry.showAt(x, y, cap.width, cap.height);
+    }
   }
 
   function showMenu() {
@@ -710,6 +728,7 @@ function bootstrap() {
     failPanel.update(dt);
     helpPanel.update(dt);
     toast.update(dt);
+    syncClubEntry();
     if (game.state === 'win') app.winBannerTime += dt;
 
     topBar.hintEnabled = !game.hintUsed;

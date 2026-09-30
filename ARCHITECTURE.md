@@ -64,6 +64,7 @@ minigame/
 │     ├─ LevelSelect.js        # 选关网格（星级/锁/扩容按钮）
 │     ├─ PausePanel.js         # 暂停面板（继续/音效开关/帮助/选关/重开）
 │     ├─ Toast.js              # 轻提示气泡（UNDO_DENIED 等）
+│     ├─ GameClubEntry.js      # 游戏圈原生按钮封装（选关/结算/暂停三场景联动显隐）
 │     └─ ParticleFX.js         # 粒子对象池（三消爆发/坍塌灰尘），halfMode 降帧降级
 ├─ scripts/
 │  ├─ buildLevels.js           # 生成 30 关（生成器+校验器管线，seed 搜索）→ levelData/
@@ -270,7 +271,7 @@ PIL 脚本现画：`logo.png` 为 4 倍超采样+圆角 mask+floodfill 裁角；
 | 物理坍塌 Pro | 未做 | 原生路线无物理引擎，属 Cocos 迁移项 |
 | 无尽模式 | 未做 | 生成器现成，加循环与计分即可 |
 
-**已完成（本批次）**：选关菜单+星级+回玩、暂停/设置（音效开关）、新手三步引导、UNDO 轻提示、结算星级/用时/步数、被动分享菜单、窗口 resize 适配、槽位扩容入口（选关页底部，邀好友每日 1 次，上限 8）。
+游戏圈入口：`wx.createGameClubButton` 原生悬浮按钮，经 `GameClubEntry` 封装，仅在选关页（左上）、结算面板（下方居中）、暂停面板（按钮组下方）三处显示，进局自动隐藏，不遮挡 3D 玩法区；旧基础库无该 API 时静默降级。
 
 **星级规则**：3 星起步；用过撤销 −1；用过失败救援 −1；下限 1 星。存 `SaveManager.results`（保留最佳星/最快时间）。
 

@@ -8,18 +8,25 @@ function freshBootstrap(opts) {
     screwmaster_tutorial: '1',
     screwmaster_progress: JSON.stringify({ unlockedLevel: opts.unlocked || 1 })
   };
-  const mock = Platform.createMockPlatform({
+  const frames = [];
+  const mockOpts = {
     createCanvas: () => null,
-    raf: () => 0,
+    raf: (cb) => { frames.push(cb); return frames.length; },
     now: () => 0,
     getLaunchOptions: () => (opts.query ? { query: opts.query } : {}),
     storage
-  });
+  };
+  if (opts.capsule) {
+    mockOpts.getMenuButtonBoundingClientRect =
+      typeof opts.capsule === 'function' ? opts.capsule : () => opts.capsule;
+  }
+  const mock = Platform.createMockPlatform(mockOpts);
   Platform.inject(mock);
   delete require.cache[require.resolve('../js/main')];
   const bootstrap = require('../js/main');
   const app = bootstrap();
-  return { app, mock };
+  if (frames.length) frames[0](0);
+  return { app, mock, frames };
 }
 
 section('Capsule share & launch query');
@@ -63,8 +70,49 @@ test('launch level beyond unlock falls back to menu', () => {
 });
 
 test('plain launch without query opens menu', () => {
-  const { app } = freshBootstrap({ unlocked: 4 });
+  const { app, mock } = freshBootstrap({ unlocked: 4 });
   assertEq(app.inMenu, true);
+  assert(mock.clubButton, 'game club button created');
+  assertEq(mock.clubButton.visible, true, 'club entry shown on menu');
+  assertEq(mock.clubButton.style.left, 7);
+  assertEq(mock.clubButton.style.top, 26);
+  assertEq(mock.clubButton.style.width, 87);
+  assertEq(mock.clubButton.style.height, 32);
+  assertEq(mock.clubButton.style.borderRadius, 16);
+  Platform.inject(null);
+  delete require.cache[require.resolve('../js/main')];
+});
+
+test('club entry mirrors LIVE capsule rect', () => {
+  const live = { top: 34, height: 30, bottom: 64, left: 268, right: 358, width: 90 };
+  const { mock } = freshBootstrap({ unlocked: 3, capsule: live });
+  assertEq(mock.clubButton.style.top, 34);
+  assertEq(mock.clubButton.style.left, 375 - 358);
+  assertEq(mock.clubButton.style.width, 90);
+  assertEq(mock.clubButton.style.height, 30);
+  assertEq(mock.clubButton.style.borderRadius, 15);
+  Platform.inject(null);
+  delete require.cache[require.resolve('../js/main')];
+});
+
+test('capsule rect fetched once, never polled', () => {
+  let calls = 0;
+  const counting = () => {
+    calls++;
+    return { top: 30, height: 32, bottom: 62, left: 270, right: 360, width: 90 };
+  };
+  const { app, frames } = freshBootstrap({ unlocked: 3, capsule: counting });
+  assertEq(calls, 1, 'fetched exactly once at bootstrap');
+  for (let i = 0; i < 5; i++) {
+    const cb = frames.shift();
+    if (cb) cb(0);
+  }
+  assertEq(calls, 1, 'no polling while visible');
+  app.startLevelById(1);
+  if (frames.length) frames.shift()(0);
+  app.showMenu();
+  if (frames.length) frames.shift()(0);
+  assertEq(calls, 1, 'no re-fetch on show transitions');
   Platform.inject(null);
   delete require.cache[require.resolve('../js/main')];
 });
