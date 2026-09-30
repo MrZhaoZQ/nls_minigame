@@ -19,9 +19,14 @@ class SlotUI {
     this.whiteT = 0;
     this.floats = [];
     this.flash = null;
+    this.rev = 0;
 
     bus.on(Events.SLOT_UPDATED, (d) => {
       this.slots = d.slots.slice();
+      if (this.warning && this.slots.length < GameConfig.slot.warnAt) {
+        this.warning = false;
+      }
+      this.rev++;
       if (d.arrivedIndex >= 0 && this._lastFlight) {
         const f = this._lastFlight;
         this._lastFlight = null;
@@ -98,6 +103,12 @@ class SlotUI {
       y: this.y + this.barH / 2,
       r: Math.min(step * 0.32, 26)
     };
+  }
+
+  hasAnim() {
+    return this.flights.length > 0 || this.bounces.length > 0 ||
+      this.warning || this.flash !== null || this._pendingIndex >= 0 ||
+      this.shakeT > 0 || this.whiteT > 0 || this.floats.length > 0;
   }
 
   update(dt) {

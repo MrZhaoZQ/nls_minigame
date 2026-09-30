@@ -43,7 +43,10 @@ class Renderer {
     };
     walk(scene.root);
 
-    const drawList = faces.slice(0, countRef.n);
+    let drawList = this._drawList;
+    if (!drawList) drawList = this._drawList = [];
+    for (let i = 0; i < countRef.n; i++) drawList[i] = faces[i];
+    drawList.length = countRef.n;
     drawList.sort((a, b) => b.depth - a.depth);
 
     for (let i = 0; i < drawList.length; i++) {
@@ -78,14 +81,16 @@ class Renderer {
       mesh._screenCache = new Array(nv);
     }
 
+    const wScratch = this._wScratch || (this._wScratch = [0, 0, 0]);
     for (let i = 0; i < nv; i++) {
       const lv = mesh.verts[i];
-      const scaled = [lv[0] * scale, lv[1] * scale, lv[2] * scale];
-      const w = Mat3.transform(worldRot, scaled);
-      w[0] += worldPos[0]; w[1] += worldPos[1]; w[2] += worldPos[2];
-      const v = camera.toView(w);
-      mesh._viewCache[i] = v;
-      mesh._screenCache[i] = camera.project(w);
+      wScratch[0] = worldPos[0] + (worldRot[0] * lv[0] + worldRot[1] * lv[1] + worldRot[2] * lv[2]) * scale;
+      wScratch[1] = worldPos[1] + (worldRot[3] * lv[0] + worldRot[4] * lv[1] + worldRot[5] * lv[2]) * scale;
+      wScratch[2] = worldPos[2] + (worldRot[6] * lv[0] + worldRot[7] * lv[1] + worldRot[8] * lv[2]) * scale;
+      camera.toViewInto(wScratch, mesh._viewCache[i]);
+      let sc = mesh._screenCache[i];
+      if (!sc) { sc = mesh._screenCache[i] = { x: 0, y: 0, z: 0 }; }
+      camera.projectInto(wScratch, sc);
     }
 
     const isHighlight = this.highlightScrewId && node.id === this.highlightScrewId;

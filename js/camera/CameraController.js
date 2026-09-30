@@ -85,6 +85,14 @@ class CameraController {
     this.shakeIntensity = intensity;
   }
 
+  isMoving() {
+    return Math.abs(this.targetYaw - this.yaw) > 0.01 ||
+      Math.abs(this.targetPitch - this.pitch) > 0.01 ||
+      Math.abs(this.targetDist - this.dist) > 0.01 ||
+      Math.abs(this.velYaw) > 0.01 ||
+      this.shakeDuration > 0;
+  }
+
   update(dt) {
     const frames = Math.max(0.001, dt * 60);
 

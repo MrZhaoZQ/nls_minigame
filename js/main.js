@@ -58,6 +58,7 @@ function bootstrap() {
     app.ctx = canvas.getContext('2d');
     if (app.ctx) {
       app.ctx.setTransform(app.screen.pixelRatio, 0, 0, app.screen.pixelRatio, 0, 0);
+      app.forceRender = true;
       const g = app.ctx.createLinearGradient(0, 0, 0, app.screen.height);
       g.addColorStop(0, GameConfig.scene.bgTop);
       g.addColorStop(1, GameConfig.scene.bgBottom);
@@ -338,6 +339,7 @@ function bootstrap() {
       app.pausedReturn = false;
       app.lastProgressAt = Platform.now();
       app.resumeTouchAt = Platform.now();
+      app.forceRender = true;
       return;
     }
     if (app.resumeTouchAt && Platform.now() - app.resumeTouchAt <= GameConfig.input.tapMaxTime) {
@@ -412,13 +414,11 @@ function bootstrap() {
       } else if (winHit === 'double' && !resultPanel.doubled) {
         rewardProvider.show('win_double', (res) => {
           if (!res.rewarded) { rewardFailToast(res); return; }
-          if (res.rewarded) {
-            resultPanel.doubled = true;
-            if (resultPanel.info) {
-              resultPanel.info.balance = SaveManager.addCoins(app.lastWinCoins || 0);
-              syncCoins();
-            }
+          resultPanel.doubled = true;
+          if (resultPanel.info) {
+            resultPanel.info.balance = SaveManager.addCoins(app.lastWinCoins || 0);
           }
+          resultPanel.rev++;
         });
       }
       return;
@@ -564,6 +564,7 @@ function bootstrap() {
       app.pausedReturn = false;
       app.lastProgressAt = Platform.now();
       app.resumeTouchAt = Platform.now();
+      app.forceRender = true;
     }
   });
 
@@ -668,6 +669,7 @@ function bootstrap() {
     }
     if (app.hiddenAt && Platform.now() - app.hiddenAt > 60000 && !app.inMenu) {
       app.pausedReturn = true;
+      app.forceRender = true;
     }
     app.hiddenAt = null;
     lastTs = Platform.now();
@@ -695,6 +697,8 @@ function bootstrap() {
   let lastTs = Platform.now();
   app.slowFrames = 0;
   app.degraded = false;
+  app.forceRender = true;
+  Platform.setPreferredFramesPerSecond(60);
   app.vibrate = () => {
     if (!app.degraded) Platform.vibrateShort();
   };
@@ -710,6 +714,7 @@ function bootstrap() {
       if (app.slowFrames > 30) {
         app.degraded = true;
         particles.halfMode = true;
+        Platform.setPreferredFramesPerSecond(30);
       }
     } else if (app.slowFrames > 0) {
       app.slowFrames--;
@@ -741,7 +746,23 @@ function bootstrap() {
     }
 
     const ctx = app.ctx;
-    if (ctx) {
+    const revSum = topBar.rev + slotUI.rev + resultPanel.rev + failPanel.rev +
+      helpPanel.rev + levelSelect.rev + pausePanel.rev + toast.rev +
+      tutorial.rev + hintMarker.rev;
+    const animActive = camCtrl.isMoving() || tweens.count > 0 ||
+      particles.active.length > 0 || slotUI.hasAnim() ||
+      (resultPanel.visible && resultPanel.animT < 1) ||
+      (failPanel.visible && failPanel.animT < 1) ||
+      (helpPanel.visible && (helpPanel.animT < 1 || helpPanel.vel !== 0)) ||
+      topBar.pressedT > 0 || levelSelect.pressedT > 0 ||
+      pausePanel.pressedT > 0 || resultPanel.pressedT > 0 || failPanel.pressedT > 0 ||
+      toast.msg !== '' || hintMarker.target !== null || tutorial.active ||
+      (app.winBannerTime > 0 && app.winBannerTime < 0.5);
+    const dirty = app.forceRender || animActive || revSum !== app._lastRevSum;
+    app._lastRevSum = revSum;
+
+    if (ctx && dirty) {
+      app.forceRender = false;
       const w = app.screen.width;
       const h = app.screen.height;
       ctx.fillStyle = app.bgGradient || GameConfig.scene.bgTop;

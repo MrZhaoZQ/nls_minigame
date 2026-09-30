@@ -66,6 +66,7 @@ function wrapText(text, maxChars) {
 class HelpPanel {
   constructor(screenW, screenH, capsule, opts) {
     this.sections = buildSections((opts && opts.rewardWord) || '看视频');
+    this.rev = 0;
     this.w = screenW;
     this.h = screenH;
     this.capsule = capsule || { top: 26, height: 32, bottom: 58 };
@@ -131,6 +132,7 @@ class HelpPanel {
 
   show() {
     this.visible = true;
+    this.rev++;
     this.animT = 0;
     this.scroll = 0;
     this.vel = 0;
@@ -141,6 +143,7 @@ class HelpPanel {
     this.visible = false;
     this.vel = 0;
     this.dragging = false;
+    this.rev++;
   }
 
   update(dt) {
@@ -150,6 +153,7 @@ class HelpPanel {
       const frames = Math.max(0.001, dt * 60);
       this.scroll = Math.max(0, Math.min(this.maxScroll, this.scroll + this.vel * frames));
       this.vel *= Math.pow(0.92, frames);
+      this.rev++;
       if (this.scroll === 0 || this.scroll === this.maxScroll) this.vel = 0;
     }
   }
@@ -157,6 +161,7 @@ class HelpPanel {
   onDrag(dy) {
     if (!this.visible) return;
     this.dragging = true;
+    this.rev++;
     this.vel = 0.7 * this.vel + 0.3 * (-dy);
     this.scroll = Math.max(0, Math.min(this.maxScroll, this.scroll - dy));
   }

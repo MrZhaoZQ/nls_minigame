@@ -18,12 +18,14 @@ class TopBar {
     this.buttons = [];
     this.pressedId = null;
     this.pressedT = 0;
+    this.rev = 0;
     this._layout();
   }
 
   setPressed(id) {
     this.pressedId = id;
     this.pressedT = 0.16;
+    this.rev++;
   }
 
   resize(w, h, capsule) {
@@ -47,9 +49,9 @@ class TopBar {
     ];
   }
 
-  setLevel(label) { this.levelLabel = label; }
-  setRemaining(n) { this.remaining = n; }
-  setUndoQuota(n) { this.undoQuota = n; }
+  setLevel(label) { this.levelLabel = label; this.rev++; }
+  setRemaining(n) { this.remaining = n; this.rev++; }
+  setUndoQuota(n) { this.undoQuota = n; this.rev++; }
 
   isEnabled(id) {
     if (this.allDisabled) return false;
@@ -82,15 +84,19 @@ class TopBar {
     ctx.shadowColor = 'rgba(31,45,61,0.18)';
     ctx.shadowBlur = 5;
     ctx.shadowOffsetY = 2;
-    const g = ctx.createRadialGradient(
-      b.x - b.r * 0.35, b.y - b.r * 0.4, b.r * 0.15,
-      b.x, b.y, b.r * 1.05);
-    if (enabled) {
-      g.addColorStop(0, '#ffffff');
-      g.addColorStop(1, '#e9edf2');
-    } else {
-      g.addColorStop(0, 'rgba(255,255,255,0.78)');
-      g.addColorStop(1, 'rgba(235,238,242,0.55)');
+    const gk = enabled ? '_gOn' : '_gOff';
+    let g = b[gk];
+    if (!g) {
+      g = b[gk] = ctx.createRadialGradient(
+        b.x - b.r * 0.35, b.y - b.r * 0.4, b.r * 0.15,
+        b.x, b.y, b.r * 1.05);
+      if (enabled) {
+        g.addColorStop(0, '#ffffff');
+        g.addColorStop(1, '#e9edf2');
+      } else {
+        g.addColorStop(0, 'rgba(255,255,255,0.78)');
+        g.addColorStop(1, 'rgba(235,238,242,0.55)');
+      }
     }
     ctx.fillStyle = g;
     ctx.fill();

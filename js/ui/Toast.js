@@ -7,11 +7,13 @@ class Toast {
     this.msg = '';
     this.t = 0;
     this.duration = 1.4;
+    this.rev = 0;
   }
 
   show(msg) {
     this.msg = msg;
     this.t = 0;
+    this.rev = (this.rev || 0) + 1;
   }
 
   update(dt) {

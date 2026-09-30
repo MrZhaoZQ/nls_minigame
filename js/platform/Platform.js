@@ -259,6 +259,17 @@ const Platform = {
     if (opts && opts.fail) opts.fail({ errMsg: 'shareAppMessage:fail(noplatform)' });
   },
 
+  setPreferredFramesPerSecond(fps) {
+    if (_mock) { _mock.preferredFps = fps; return; }
+    if (hasWx() && wx.setPreferredFramesPerSecond) {
+      try {
+        wx.setPreferredFramesPerSecond(fps);
+      } catch (e) {
+        return;
+      }
+    }
+  },
+
   getMenuButtonBoundingClientRect() {
     if (_mock && _mock.getMenuButtonBoundingClientRect) return _mock.getMenuButtonBoundingClientRect();
     if (hasWx() && wx.getMenuButtonBoundingClientRect) {

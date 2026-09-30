@@ -7,6 +7,7 @@ class Tutorial {
     this.active = false;
     this.step = 0;
     this.t = 0;
+    this.rev = 0;
     this.btn = { x: -999, y: -999, w: 0, h: 0 };
   }
 
@@ -14,18 +15,20 @@ class Tutorial {
     this.active = true;
     this.step = 0;
     this.t = 0;
+    this.rev = (this.rev || 0) + 1;
   }
 
   notifyDrag() {
-    if (this.active && this.step === 0) { this.step = 1; this.t = 0; }
+    if (this.active && this.step === 0) { this.step = 1; this.t = 0; this.rev = (this.rev || 0) + 1; }
   }
 
   notifyCollected() {
-    if (this.active && this.step === 1) { this.step = 2; this.t = 0; }
+    if (this.active && this.step === 1) { this.step = 2; this.t = 0; this.rev = (this.rev || 0) + 1; }
   }
 
   done() {
     this.active = false;
+    this.rev = (this.rev || 0) + 1;
   }
 
   update(dt) {

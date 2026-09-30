@@ -15,6 +15,7 @@ class Camera {
     this.right = [1, 0, 0];
     this.up = [0, 1, 0];
     this.forward = [0, 0, -1];
+    this._sv = [0, 0, 0];
     this._updateFocal();
   }
 
@@ -55,6 +56,16 @@ class Camera {
     ];
   }
 
+  toViewInto(worldPt, out) {
+    const px = worldPt[0] - this.position[0];
+    const py = worldPt[1] - this.position[1];
+    const pz = worldPt[2] - this.position[2];
+    out[0] = px * this.right[0] + py * this.right[1] + pz * this.right[2];
+    out[1] = px * this.up[0] + py * this.up[1] + pz * this.up[2];
+    out[2] = px * this.forward[0] + py * this.forward[1] + pz * this.forward[2];
+    return out;
+  }
+
   project(worldPt) {
     const v = this.toView(worldPt);
     if (v[2] <= this.near) return null;
@@ -65,6 +76,15 @@ class Camera {
       y: cyy - (v[1] * this.focal) / v[2],
       z: v[2]
     };
+  }
+
+  projectInto(worldPt, out) {
+    const v = this.toViewInto(worldPt, this._sv);
+    if (v[2] <= this.near) return null;
+    out.x = this.screenWidth / 2 + (v[0] * this.focal) / v[2];
+    out.y = this.screenHeight / 2 - (v[1] * this.focal) / v[2];
+    out.z = v[2];
+    return out;
   }
 
   rayFromScreen(sx, sy) {

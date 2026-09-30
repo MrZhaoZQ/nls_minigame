@@ -6,16 +6,19 @@ class HintMarker {
   constructor() {
     this.target = null;
     this.t = 0;
+    this.rev = 0;
   }
 
   setTarget(entry) {
     this.target = entry || null;
     this.t = 0;
+    this.rev = (this.rev || 0) + 1;
   }
 
   clear() {
     this.target = null;
     this.t = 0;
+    this.rev = (this.rev || 0) + 1;
   }
 
   update(dt) {
@@ -27,6 +30,7 @@ class HintMarker {
     const node = this.target.node;
     if (!node.parent) {
       this.target = null;
+      this.rev++;
       return;
     }
     const wp = node.worldPos(scene.stamp);

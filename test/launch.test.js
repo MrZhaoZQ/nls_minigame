@@ -95,6 +95,40 @@ test('club entry mirrors LIVE capsule rect', () => {
   delete require.cache[require.resolve('../js/main')];
 });
 
+function stubCtx() {
+  const grad = { addColorStop() {} };
+  const store = {};
+  return new Proxy(store, {
+    get(t, k) {
+      if (k === 'measureText') return (s) => ({ width: String(s).length * 13 });
+      if (k === 'createLinearGradient' || k === 'createRadialGradient') return () => grad;
+      if (k in t) return t[k];
+      return function () {};
+    },
+    set(t, k, v) { t[k] = v; return true; }
+  });
+}
+
+test('idle frames skip rendering (thermal optimization)', () => {
+  const { app, frames } = freshBootstrap({ unlocked: 3 });
+  app.ctx = stubCtx();
+  app.forceRender = true;
+  let renders = 0;
+  const orig = app.renderer.render.bind(app.renderer);
+  app.renderer.render = (ctx, sc, cam, o) => { renders++; return orig(ctx, sc, cam, o); };
+  const step = () => { const cb = frames.shift(); if (cb) cb(0); };
+  step();
+  const base = renders;
+  assert(base >= 1, 'forced frame renders');
+  step(); step(); step(); step();
+  assertEq(renders, base, 'idle menu must not re-render');
+  app.levelSelect.onDrag(-20);
+  step();
+  assert(renders > base, 'interaction triggers render');
+  Platform.inject(null);
+  delete require.cache[require.resolve('../js/main')];
+});
+
 test('capsule rect fetched once, never polled', () => {
   let calls = 0;
   const counting = () => {

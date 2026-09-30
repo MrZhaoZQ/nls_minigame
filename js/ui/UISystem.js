@@ -27,13 +27,19 @@ const UISystem = {
     ctx.save();
     ctx.globalAlpha = alpha;
 
-    const grad = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r);
-    grad.addColorStop(0, c.light);
-    grad.addColorStop(0.75, c.main);
-    grad.addColorStop(1, c.dark);
-    ctx.fillStyle = grad;
+    ctx.fillStyle = c.main;
     ctx.beginPath();
     ctx.arc(x, y, r * scale, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = c.dark;
+    ctx.beginPath();
+    ctx.arc(x, y, r * scale, 0, Math.PI * 2);
+    ctx.lineWidth = Math.max(1.5, r * 0.22);
+    ctx.strokeStyle = c.dark;
+    ctx.stroke();
+    ctx.fillStyle = c.light;
+    ctx.beginPath();
+    ctx.arc(x - r * 0.22 * scale, y - r * 0.24 * scale, r * 0.5 * scale, 0, Math.PI * 2);
     ctx.fill();
 
     ctx.strokeStyle = 'rgba(0,0,0,0.25)';

@@ -11,6 +11,7 @@ class PausePanel {
     this.buttons = [];
     this.pressedId = null;
     this.pressedT = 0;
+    this.rev = 0;
   }
 
   setPressed(id) {
@@ -25,12 +26,14 @@ class PausePanel {
 
   show(opts) {
     this.visible = true;
+    this.rev++;
     if (opts && opts.muted != null) this.muted = opts.muted;
     this._layout();
   }
 
   hide() {
     this.visible = false;
+    this.rev++;
   }
 
   update(dt) {

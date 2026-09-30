@@ -21,11 +21,13 @@ class LevelSelect {
     this.viewBottom = 0;
     this.pressedId = null;
     this.pressedT = 0;
+    this.rev = 0;
   }
 
   setPressed(id) {
     this.pressedId = id;
     this.pressedT = 0.16;
+    this.rev++;
   }
 
   resize(w, h) {
@@ -42,11 +44,13 @@ class LevelSelect {
     this.coins = opts.coins || 0;
     this.canExpand = !!opts.canExpand;
     this.scroll = 0;
+    this.rev++;
     this._layout();
   }
 
   onDrag(dy) {
     if (!this.visible) return;
+    this.rev++;
     this.scroll = Math.max(0, Math.min(this.maxScroll, this.scroll - dy));
   }
 

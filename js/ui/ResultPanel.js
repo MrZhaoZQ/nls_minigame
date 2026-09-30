@@ -15,6 +15,7 @@ class ResultPanel {
     this.doubleLabel = '看视频 金币翻倍';
     this.pressedId = null;
     this.pressedT = 0;
+    this.rev = 0;
   }
 
   setPressed(id) {
@@ -29,6 +30,7 @@ class ResultPanel {
 
   show(coins, info) {
     this.visible = true;
+    this.rev++;
     this.animT = 0;
     this.coins = coins;
     this.doubled = false;
@@ -37,6 +39,7 @@ class ResultPanel {
 
   hide() {
     this.visible = false;
+    this.rev++;
   }
 
   update(dt) {

@@ -14,6 +14,7 @@ class FailPanel {
     this.coinOffered = false;
     this.pressedId = null;
     this.pressedT = 0;
+    this.rev = 0;
     this.undoLabel = '看视频 撤回最后一步';
     this.clearLabel = '看视频 移出3颗螺丝';
     this.coinLabel = '花 50 金币 撤回一步';
@@ -26,6 +27,7 @@ class FailPanel {
 
   show(opts) {
     this.visible = true;
+    this.rev++;
     this.animT = 0;
     if (opts) {
       if (opts.undoOffered != null) this.undoOffered = opts.undoOffered;
@@ -37,6 +39,7 @@ class FailPanel {
 
   hide() {
     this.visible = false;
+    this.rev++;
   }
 
   update(dt) {
