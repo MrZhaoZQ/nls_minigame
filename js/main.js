@@ -431,12 +431,21 @@ function bootstrap() {
         failPanel.hide();
         startLevelById(app.currentLevelId);
       } else if (failHit === 'adUndo') {
+        if (game.undoStack.size() === 0) {
+          app.bus.emit('UNDO_DENIED', { reason: 'empty' });
+          return;
+        }
         rewardProvider.show('fail_undo', (res) => {
           if (!res.rewarded) { rewardFailToast(res); return; }
+          game.adUndoLeft += 1;
+          const r = game.undo();
+          if (!r.ok) {
+            game.adUndoLeft -= 1;
+            app.bus.emit('UNDO_DENIED', { reason: r.reason });
+            return;
+          }
           app.levelStats.rescues++;
           failPanel.hide();
-          game.adUndoLeft += 1;
-          game.undo();
           topBar.setUndoQuota(game.freeUndoLeft + game.adUndoLeft);
           topBar.setRemaining(game.totalRemainingOnBoards());
         });
@@ -451,16 +460,24 @@ function bootstrap() {
           topBar.setRemaining(game.totalRemainingOnBoards());
         });
       } else if (failHit === 'coinUndo') {
-        if (SaveManager.spendCoins(GameConfig.economy.rescueCost)) {
-          syncCoins();
-          app.levelStats.rescues++;
-          failPanel.hide();
-          game.adUndoLeft += 1;
-          game.undo();
-          topBar.setUndoQuota(game.freeUndoLeft + game.adUndoLeft);
-          topBar.setRemaining(game.totalRemainingOnBoards());
-          toast.show('已消耗 ' + GameConfig.economy.rescueCost + ' 金币');
+        if (game.undoStack.size() === 0) {
+          app.bus.emit('UNDO_DENIED', { reason: 'empty' });
+          return;
         }
+        game.adUndoLeft += 1;
+        const r = game.undo();
+        if (!r.ok) {
+          game.adUndoLeft -= 1;
+          app.bus.emit('UNDO_DENIED', { reason: r.reason });
+          return;
+        }
+        SaveManager.spendCoins(GameConfig.economy.rescueCost);
+        syncCoins();
+        app.levelStats.rescues++;
+        failPanel.hide();
+        topBar.setUndoQuota(game.freeUndoLeft + game.adUndoLeft);
+        topBar.setRemaining(game.totalRemainingOnBoards());
+        toast.show('已消耗 ' + GameConfig.economy.rescueCost + ' 金币');
       }
       return;
     }

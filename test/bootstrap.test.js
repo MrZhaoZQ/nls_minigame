@@ -228,3 +228,96 @@ test('coin purchases go through modal confirm', () => {
   Platform.inject(null);
   delete require.cache[require.resolve('../js/main')];
 });
+
+test('fail panel coin rescue undoes the last step and charges only on success', () => {
+  let clock = 0;
+  const frames = [];
+  const mock = require('../js/platform/Platform').createMockPlatform({
+    createCanvas: () => null,
+    raf: (cb) => { frames.push(cb); return frames.length; },
+    now: () => clock
+  });
+  const Platform = require('../js/platform/Platform');
+  const SaveManager = require('../js/core/SaveManager');
+  Platform.inject(mock);
+
+  delete require.cache[require.resolve('../js/main')];
+  const bootstrap = require('../js/main');
+  const app = bootstrap();
+
+  const stepFrames = (n, dtMs) => {
+    for (let i = 0; i < n; i++) {
+      clock += dtMs;
+      const cb = frames.shift();
+      cb(clock);
+    }
+  };
+  const tapAt = (x, y) => {
+    mock.touchHandlers.start.forEach(h => h({ touches: [{ identifier: 0, clientX: x, clientY: y }], changedTouches: [{ identifier: 0, clientX: x, clientY: y }] }));
+    mock.touchHandlers.end.forEach(h => h({ touches: [], changedTouches: [{ identifier: 0, clientX: x, clientY: y }] }));
+  };
+
+  stepFrames(2, 16);
+  app.tutorial.done();
+
+  SaveManager.addCoins(100);
+  app.syncCoins();
+
+  const game = app.game;
+  const cap = game.slotManager.capacity;
+  const palette = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
+  const forceLose = () => {
+    game.slotManager.slots = palette.slice(0, cap);
+    game.state = 'lose';
+    app.bus.emit('LEVEL_LOSE', { level: app.currentLevelId, slots: game.slotManager.slots.slice() });
+    stepFrames(2, 16);
+  };
+  const coinBtn = () => app.failPanel.buttons.find(b => b.id === 'coinUndo');
+  const tapCoinBtn = () => {
+    const b = coinBtn();
+    assert(b, 'coin rescue button offered');
+    tapAt(b.x + b.w / 2, b.y + b.h / 2);
+    stepFrames(2, 16);
+  };
+
+  assertEq(game.undoStack.size(), 0, 'fresh level has empty undo stack');
+  forceLose();
+  assert(app.failPanel.visible && app.failPanel.coinOffered, 'coin rescue offered when affordable');
+  tapCoinBtn();
+  assertEq(SaveManager.getCoins(), 100, 'impossible undo spends nothing');
+  assertEq(app.toast.msg, '没有可撤销的操作', 'player told why nothing happened');
+  assertEq(game.state, 'lose', 'still in fail state');
+  assert(app.failPanel.visible, 'fail panel stays for other choices');
+  assertEq(game.adUndoLeft, 0, 'no quota leak on denied rescue');
+
+  game.state = 'playing';
+  game.slotManager.slots = [];
+  app.bus.emit('SLOT_UPDATED', { slots: [], arrivedIndex: -1 });
+  app.failPanel.hide();
+  stepFrames(2, 16);
+
+  const target = game.screwManager.screws.find(s => s.state === 'unlocked');
+  assert(target, 'unlocked screw exists');
+  const stamp = app.scene.beginFrame();
+  const wp = target.node.worldPos(stamp);
+  const scr = app.camera.project([wp[0], wp[1] + 0.06, wp[2]]);
+  assert(scr, 'screw visible');
+  tapAt(scr.x, scr.y);
+  stepFrames(40, 20);
+  assertEq(game.slotManager.count(), 1, 'one screw collected');
+  const remainingAfterCollect = game.boardById[target.boardId].remaining;
+
+  forceLose();
+  tapCoinBtn();
+  assertEq(SaveManager.getCoins(), 50, 'charged after the undo executed');
+  assertEq(game.state, 'playing', 'rescued back to playing');
+  assertEq(game.slotManager.count(), 0, 'slot snapshot before the last screw restored');
+  assertEq(game.boardById[target.boardId].remaining, remainingAfterCollect + 1, 'screw returned to its board');
+  assertEq(target.state, 'unlocked', 'screw collectable again');
+  assertEq(target.node.parent, target.holeNode, 'screw node reattached to its hole');
+  assertEq(app.failPanel.visible, false, 'fail panel closed');
+  assertEq(app.levelStats.rescues, 1, 'rescue counted once');
+
+  Platform.inject(null);
+  delete require.cache[require.resolve('../js/main')];
+});
