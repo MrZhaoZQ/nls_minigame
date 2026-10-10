@@ -10,7 +10,8 @@ const KEYS = {
   tutorial: 'screwmaster_tutorial',
   results: 'screwmaster_results',
   capacityDay: 'screwmaster_capacityday',
-  coins: 'screwmaster_coins'
+  coins: 'screwmaster_coins',
+  interCount: 'screwmaster_intercount'
 };
 
 const SaveManager = {
@@ -62,6 +63,26 @@ const SaveManager = {
     info.count++;
     info.lastShowTs = Platform.now();
     Platform.storage.set(KEYS.adCount, JSON.stringify(info));
+    return info;
+  },
+
+  getDailyInterInfo() {
+    const raw = Platform.storage.get(KEYS.interCount);
+    try {
+      const data = raw ? JSON.parse(raw) : null;
+      const today = new Date(Platform.now()).toDateString();
+      if (data && data.date === today) return data;
+      return { date: today, count: 0, lastShowTs: 0 };
+    } catch (e) {
+      return { date: new Date(Platform.now()).toDateString(), count: 0, lastShowTs: 0 };
+    }
+  },
+
+  recordInterShow() {
+    const info = SaveManager.getDailyInterInfo();
+    info.count++;
+    info.lastShowTs = Platform.now();
+    Platform.storage.set(KEYS.interCount, JSON.stringify(info));
     return info;
   },
 

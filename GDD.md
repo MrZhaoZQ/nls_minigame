@@ -21,7 +21,7 @@
 > 4. 关卡由 20 → **30**，生成器阶段数值、校验器规则（3 组随机种子 ×100 次 + 1 次确定性贪心、自动 +1 槽）按实现修订；
 > 5. 拾取/遮挡方案按实现修订：螺丝头**球体命中** + 上层板**footprint 核心区遮挡判定**（射线-OBB 求交保留为数学工具与测试）；
 > 6. 撤销改为**快照式**（还原入槽前槽位数组），失败面板救援为「撤回一步 / 移出 3 颗」；
-> 7. 附录 A（GameConfig）与附录 B（运行/验收）同步至当前真实配置与测试现状（149 项断言全绿）。
+> 7. 附录 A（GameConfig）与附录 B（运行/验收）同步至当前真实配置与测试现状（159 项断言全绿）。
 >
 > 维护向信息（模块装配顺序、输入路由细节、排障速查）见配套文档 `ARCHITECTURE.md`；本文件承载设计意图、玩法规格、数值与验收标准。
 
@@ -362,7 +362,7 @@ module.exports = {
 
 ### 6.1 奖励提供方：双模式一键切换
 
-> **决策 D19**：`GameConfig.ad.mode` = `'share'`（**当前**，流量主未开通）或 `'ad'`（开通后）。`AdManager` 与 `ShareManager` 实现**同一接口** `show(placement, cb) / canShow(placement) / setLevel(id)`，启动时按模式选定唯一 `rewardProvider`。五个奖励位、四段文案（失败面板/结算面板/帮助面板/选关页扩容按钮）随模式自动切换，**业务代码零改动**。
+> **决策 D19**：`GameConfig.ad.mode` = `'ad'`（**当前**，流量主已开通、激励位已接）或 `'share'`（回退开关，供审核/异常期切换）。`AdManager` 与 `ShareManager` 实现**同一接口** `show(placement, cb) / canShow(placement) / setLevel(id)`，启动时按模式选定唯一 `rewardProvider`。五个奖励位、四段文案（失败面板/结算面板/帮助面板/选关页扩容按钮）随模式自动切换，**业务代码零改动**。
 
 | 奖励位（placement） | 场景 | 奖励 |
 |---|---|---|
@@ -378,15 +378,26 @@ module.exports = {
 
 | 频控项 | 数值 |
 |---|---|
-| 冷启动禁弹 | 启动后 60s 内（`coldStartMs`） |
+| 冷启动禁弹 | **无**——激励视频全部为玩家主动点击（拉式），冷启动保护仅约束插屏（`interColdStartMs`） |
 | 相邻间隔 | ≥45s（`cooldownMs`） |
 | 每日上限 | 15 次（`dailyLimit`，日计数每次 `canShow` 重新读盘，跨天翻滚） |
 | 单关上限 | `fail*` 位各 ≤2 次/关（`perLevelLimit`），换关清零 |
 
 - 流程：`show()` → 失败自动 `load()` 重试一次 → `onClose.isEnded === true` 才发奖（跳过不发）；`onError` 静默降级并回调失败；
-- **mock 模式**：`unitId` 为空（当前）或平台无该 API 时，`show` 直接回调 `{rewarded: true, mock: true}`，全流程可玩；上线时填入广告位即切换真实流程。
+- **mock 模式**：平台无该 API 或测试桩未提供时（`unitId` 现已填正式值），`show` 直接回调 `{rewarded: true, mock: true}`，全流程可玩。
 
-### 6.3 ShareManager（邀好友，当前模式）
+**插屏广告（`InterstitialManager`，已接入）**：唯一展示位 = **胜利结算面板点「下一关」的转场瞬间**（自然停顿点）；失败/暂停/后台回归/选关进关路径一律不弹。闸门规则（`GameConfig.ad.inter*`）：
+
+| 闸门 | 数值 |
+|---|---|
+| 新手保护 | 前 3 关（`interProtectedLevels`）不弹 |
+| 胜利间隔 | 两次插屏之间 ≥3 次通关（`interWinGap`，`noteWin()` 计数） |
+| 相邻间隔 | ≥90s（`interCooldownMs`） |
+| 冷启动 | 启动后 120s 内不弹（`interColdStartMs`） |
+| 每日上限 | 8 次（`interDailyLimit`，独立日计数 `screwmaster_intercount`） |
+| 激励互斥 | 激励视频发奖后 60s 内不弹（`interAfterRewardedMs`，读 `AdManager.lastGrantTs`） |
+
+### 6.3 ShareManager（邀好友，回退开关模式）
 
 | 频控项 | 数值 |
 |---|---|
@@ -398,7 +409,7 @@ module.exports = {
 - 每个奖励位有独立分享标题模板（含关卡号），如 `fail_undo` → 「我在第{level}关手滑了，快来教我拧螺丝！」（`capacity` 等未配置位走通用文案「拧螺丝啦，一起来解压！」）；
 - **胶囊被动分享**：启动即 `showShareMenu({menus:['shareAppMessage','shareTimeline']})` 点亮右上角双分享；转发/朋友圈均携带动态关卡文案 + **后台审核通过的网络图**（`GameConfig.share.imageUrl` + `imageUrlId`，勿用本地图！`share.png`/`logo.png` 仅作设计源稿）+ 回流 `query=from=...&level=N`；
 - **回流**：冷启动走 `getLaunchOptions`、热启动走 `onShow(res.query)` 双路径；关卡超解锁进度回落选关页；
-- **合规提醒**：「分享得奖励」属微信《运营规范》诱导分享灰区，当前文案以「邀好友」弱化利益表述；**流量主开通后务必切回 `mode:'ad'`**（见 7.6 上线流程）。
+- **合规提醒**：「分享得奖励」属微信《运营规范》诱导分享灰区；流量主已开通、`mode:'ad'` 已切换，分享奖励通道仅作为回退开关保留，回切时文案以「邀好友」弱化利益表述。
 
 ### 6.4 金币经济（`GameConfig.economy`）
 
@@ -581,7 +592,7 @@ tick(): now/dt(钳制 ≤0.05) → 慢帧统计 → [非冻结] 相机/补间/�
 
 ## 9. 质量保障
 
-### 9.1 测试体系（`test/`，当前 **149 项断言全绿**）
+### 9.1 测试体系（`test/`，当前 **159 项断言全绿**）
 
 ```
 node test/run.js                      # 全量（16 套件）
@@ -600,7 +611,7 @@ node scripts/headlessPlaythrough.js   # 30 关无头打通（贪心玩家 + 救�
 | `collapse` | 坍塌串行/落地解锁时序/快照撤销/配额/败局恢复/坍塌板清栈 |
 | `levels` | **30 关逐个过校验器**、生成器 3 倍数性质、校验器四类反例 |
 | `bootstrap` | 无头端到端：bootstrap → 模拟点击通关 → 面板进下一关 |
-| `ad` | mock 发奖/冷启动/冷却/每关限次/日限/真广告 isEnded/跳过不发 |
+| `ad` | mock 发奖/无冷启动限制/冷却/每关限次/日限/真广告 isEnded/跳过不发 |
 | `share` | 成功发奖/取消不发/冷却/单关限次/换关清零/标题模板 |
 | `audio` | 7 文件存在/<100KB/RIFF 单声道 22050Hz |
 | `ui` | 胶囊避让/按钮右缘对齐/帮助面板滚动与惯性/槽条安全区与对称留白/提示标记生命周期/重置 |
@@ -648,7 +659,7 @@ node scripts/headlessPlaythrough.js   # 30 关无头打通（贪心玩家 + 救�
 | 项 | 现状 | 说明 |
 |---|---|---|
 | 埋点接线 | `Platform.reportEvent` 就绪、无调用点 | 按 6.5 事件表补监听即可 |
-| 切正式广告 | `ad.unitId` 空、`mode:'share'` | 流量主开通后填位 + 改 `'ad'`，四个奖励位与文案自动切换 |
+| 切正式广告 | ✅ 已完成：激励位 `unitId` 已填、`mode:'ad'`；插屏位经 `InterstitialManager` 接入结算转场（见 6.2） | 观察 eCPM/留存数据后再调频控参数 |
 | BGM 安卓兼容加固 | 已实现 8s 循环 BGM + 三重韧性（onCanplay 补播 / onError 重建重播 / onShow ensureBgm，见 5.1） | 若低端安卓仍无声，素材转 mp3/m4a 再验（wav→mp3 兼容性更好） |
 | 音效开关持久化 | 仅运行时状态 | 落 `SaveManager` 一键补 |
 | 异形板型投入关卡 | `Board_L`/`Board_Gear` 渲染/加载已支持，生成器未产出 | 扩 `generator`（footprint/孔位网格同步校验器）+ 关卡混搭 |
@@ -666,10 +677,10 @@ node scripts/headlessPlaythrough.js   # 30 关无头打通（贪心玩家 + 救�
 | 1 | 自绘 3D 视觉「廉价」，玩家不买账 | 中 | 已强化：描边/渐变光照/假阴影/坍塌粒子与震屏；最坏仅换渲染层回 Cocos（纯逻辑整体平移，附录 C） |
 | 2 | 画家算法在复杂叠层下排序穿帮 | 中 | 面片级深度排序 + 关卡限制单板尺寸；真机巡检发现穿帮关卡由生成器换 seed 重出 |
 | 3 | 低端机 Canvas2D 帧率不达标 | 中 | 降帧保护（粒子减半+关震动）、dt 钳制、顶点缓存；极端低模螺丝为备用项 |
-| 4 | 「分享得奖励」触碰诱导分享红线 | **高** | 当前文案「邀好友」弱化利益；频控严格（5s/30 日）；**流量主开通后第一优先级切 `mode:'ad'`** |
+| 4 | 「分享得奖励」触碰诱导分享红线 | 中→低 | 已切 `mode:'ad'`（流量主开通），分享奖励通道仅作回退开关；回切时文案「邀好友」弱化利益、频控严格（5s/30 日） |
 | 5 | 三消「卡死局」引发负面情绪 | 中 | 校验器保证 3 组随机 ×100 次贪心零死局（不足自动 +1 槽）；满槽前预警（≥4）；失败面板三路救援（撤销/清 3/金币） |
-| 6 | 无构建纯 JS 项目规模膨胀难维护 | 中 | 分层红线（7.2）+ 149 项测试 + 每模块职责表；`gameplay/levels/core/math` 禁触运行环境 |
-| 7 | 广告位未开通导致变现空窗 | 低 | share 通道过渡中；mock 保证全流程可玩；切广告为纯配置操作（见 `ARCHITECTURE.md`「接真广告/上线」小节） |
+| 6 | 无构建纯 JS 项目规模膨胀难维护 | 中 | 分层红线（7.2）+ 159 项测试 + 每模块职责表；`gameplay/levels/core/math` 禁触运行环境 |
+| 7 | 广告位未开通导致变现空窗 | 已消除 | 流量主开通，激励+插屏双位接入；测试桩/mock 仍保证无广告环境全流程可玩 |
 | 8 | 分享图审核不通过 | 低 | 使用后台已审图 + `imageUrlId`；设计源稿与线上图分离 |
 
 ---
@@ -681,8 +692,8 @@ node scripts/headlessPlaythrough.js   # 30 关无头打通（贪心玩家 + 救�
 ### 模板 1：无限循环模式（无尽模式）
 > 微信小游戏纯 CommonJS 项目（无注释、数值集中 GameConfig）。请基于现有 `generator.generateLevel` / `validator.validate` 增加无尽模式：每通关一「波」生成下一关（关卡序号从 31 递增、难度按 STAGES 封顶后继续爬升：板数 +1、覆盖强度向 0.9 收敛），失败即结算；计分 = 累计收集数；不写存档进度（独立 score 键，前缀 `screwmaster_`）。入口复用选关菜单加一个按钮。附 Node 单测：无限生成 200 波全部过校验器。
 
-### 模板 2：接入正式激励视频
-> 项目当前 `GameConfig.ad.mode === 'share'`。请在不改业务代码的前提下完成切换验收：把 `mode` 改 `'ad'`、`unitId` 占位说明填法；补充 `test/ad.test.js` 真实流程用例（onClose.skipped 不发、error 静默、load 重试一次）；并核对四个奖励位文案在 ad 模式下全部显示「看视频」。不要动 `ShareManager` 代码（保留回落能力）。
+### 模板 2：广告频控调参 / 新增奖励位
+> 激励位与插屏位均已接入（`mode:'ad'`）。调频控只改 `GameConfig.ad`（含 `inter*` 插屏闸门）；新增奖励位需：① 调用处走 `rewardProvider.show(placement, cb)` 同接口；② 若属失败救援类（`fail` 前缀）自动受每关限次约束；③ 文案随 `rewardWord` 双模式切换；④ `test/ad.test.js` 补频控用例。不要动 `ShareManager` 代码（保留回退能力）。
 
 ### 模板 3：新增一个异形板型进生成器
 > 现有 `MeshBuilder.buildLBoardMesh` / `LevelLoader` 已支持 `Board_L`（arm 1.2×1.2）。请扩展 `generator.js`：成长期起按 15% 概率产出 L 板；同步 `boardFootprint` 与 `validator` 的孔位边界/遮挡核心区（L 板 footprint 为 `[w/2, t/2, d]` 外扩矩形近似即可，注明误差）；`buildLevels` 重出 30 关后 `node test/run.js` 与 `headlessPlaythrough` 必须全绿。
@@ -714,8 +725,11 @@ const GameConfig = {
   match: { needCount: 3 },
   collapse: { warnTime: 0.25, fallTime: 0.5, rotMin: 15, rotMax: 30,
               fallDist: 2.5, queueGap: 0.2 },
-  ad: { unitId: '', mode: 'share', cooldownMs: 45000, dailyLimit: 15,
-        coldStartMs: 60000, perLevelLimit: 2 },
+  ad: { unitId: 'adunit-5d823507f82ee7ab', mode: 'ad', cooldownMs: 45000, dailyLimit: 15,
+        perLevelLimit: 2,
+        interUnitId: 'adunit-d11de76248f20c6a', interColdStartMs: 120000,
+        interCooldownMs: 90000, interDailyLimit: 8, interProtectedLevels: 3,
+        interWinGap: 3, interAfterRewardedMs: 60000 },
   share: {
     cooldownMs: 5000, perLevelLimit: 3, dailyLimit: 30,
     imageUrl: 'https://mmocgame.qpic.cn/wechatgame/Ywjy1K1L6eNtDDlF1cdWvqrdUriat9MAygoC1eZNAdicUOq0aNCKmJnQwZodpjhdKV/0',
@@ -747,7 +761,7 @@ const GameConfig = {
 ## 附录 B：本地运行与上线清单
 
 ```
-# 全部单测（16 套件、149 项断言）
+# 全部单测（16 套件、159 项断言）
 node test/run.js
 
 # 30 关无头打通验证（贪心玩家 + 救援配额，全绿退出码 0）
@@ -765,7 +779,7 @@ python3 scripts/make_audio.py
 ```
 
 **上线/迭代前需项目方人工确认**：
-- `GameConfig.ad.unitId`（留空 = mock 直发奖励）与 `GameConfig.ad.mode`（流量主开通后切 `'ad'`）；
+- 广告位已接正式（激励 `ad.unitId` / 插屏 `ad.interUnitId`，`mode:'ad'`）；测试桩无广告 API 时自动 mock 直发奖励，全流程可玩；
 - 分享图后台审核状态（`share.imageUrl` / `imageId` 指向已审资源）；
 - 提审素材与类目、隐私协议等合规项。
 

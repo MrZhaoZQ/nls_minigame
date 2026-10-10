@@ -11,8 +11,11 @@ const GameConfig = {
   match: { needCount: 3 },
   collapse: { warnTime: 0.25, fallTime: 0.5, rotMin: 15, rotMax: 30,
               fallDist: 2.5, queueGap: 0.2 },
-  ad: { unitId: '', mode: 'share', cooldownMs: 45000, dailyLimit: 15,
-        coldStartMs: 60000, perLevelLimit: 2 },
+  ad: { unitId: 'adunit-5d823507f82ee7ab', mode: 'ad', cooldownMs: 45000, dailyLimit: 15,
+        perLevelLimit: 2,
+        interUnitId: 'adunit-d11de76248f20c6a', interColdStartMs: 120000,
+        interCooldownMs: 90000, interDailyLimit: 8, interProtectedLevels: 3,
+        interWinGap: 3, interAfterRewardedMs: 60000 },
   share: {
     cooldownMs: 5000, perLevelLimit: 3, dailyLimit: 30,
     imageUrl: 'https://mmocgame.qpic.cn/wechatgame/Ywjy1K1L6eNtDDlF1cdWvqrdUriat9MAygoC1eZNAdicUOq0aNCKmJnQwZodpjhdKV/0',

@@ -26,6 +26,7 @@ const GameClubEntry = require('./ui/GameClubEntry');
 const LevelSelect = require('./ui/LevelSelect');
 const PausePanel = require('./ui/PausePanel');
 const AdManager = require('./ad/AdManager');
+const InterstitialManager = require('./ad/InterstitialManager');
 const ShareManager = require('./share/ShareManager');
 const AudioManager = require('./audio/AudioManager');
 const ParticleFX = require('./ui/ParticleFX');
@@ -129,11 +130,14 @@ function bootstrap() {
 
   const adMgr = new AdManager();
   adMgr.init();
+  const interMgr = new InterstitialManager({ adMgr: adMgr });
+  interMgr.init();
   const shareMgr = new ShareManager();
   const rewardMode = GameConfig.ad.mode === 'ad' ? 'ad' : 'share';
   const rewardProvider = rewardMode === 'ad' ? adMgr : shareMgr;
   const rewardWord = rewardMode === 'ad' ? '看视频' : '邀好友';
   app.adMgr = adMgr;
+  app.interMgr = interMgr;
   app.shareMgr = shareMgr;
   app.rewardProvider = rewardProvider;
 
@@ -192,7 +196,6 @@ function bootstrap() {
     if (!res || res.rewarded) return;
     const map = {
       cooldown: '操作太频繁，稍后再试',
-      coldStart: '操作太频繁，稍后再试',
       dailyLimit: '今日次数已用完',
       perLevel: '本关次数已用完',
       cancel: '已取消',
@@ -227,12 +230,7 @@ function bootstrap() {
       return;
     }
     const cap = app.capsule;
-    const x = app.screen.width - cap.right;
-    const y = cap.top;
-    const key = x + ',' + y + ',' + cap.width + ',' + cap.height;
-    if (key !== clubEntry._posKey) {
-      clubEntry.showAt(x, y, cap.width, cap.height);
-    }
+    clubEntry.showAt(app.screen.width - cap.right, cap.top, cap.width, cap.height);
   }
 
   function showMenu() {
@@ -410,6 +408,7 @@ function bootstrap() {
       resultPanel.setPressed(winHit);
       if (winHit === 'next') {
         resultPanel.hide();
+        interMgr.maybeShow(app.currentLevelId);
         startLevelById(app.currentLevelId + 1);
       } else if (winHit === 'double' && !resultPanel.doubled) {
         rewardProvider.show('win_double', (res) => {
@@ -587,6 +586,7 @@ function bootstrap() {
 
   app.bus.on(Events.LEVEL_WIN, () => {
     app.winBannerTime = 0.0001;
+    interMgr.noteWin();
     const costMs = Platform.now() - app.levelStartedAt;
     const moves = game.collectedCount;
     let stars = 3;
@@ -602,6 +602,8 @@ function bootstrap() {
     const base = game.collectedCount * 10;
     app.lastWinCoins = base;
     const balance = SaveManager.addCoins(base);
+    syncCoins();
+    resultPanel.doubleOffered = rewardProvider.canShow('win_double').ok;
     resultPanel.show(base, { stars, costMs, moves, balance });
     particles.confetti(app.screen.width / 2, app.screen.height * 0.3, 36);
 

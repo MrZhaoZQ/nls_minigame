@@ -170,6 +170,36 @@ test('graceful when API unavailable', () => {
   entry.hide();
 });
 
+test('repeat showAt same key does not re-show native button', () => {
+  let shows = 0;
+  let hides = 0;
+  const fakeBtn = { style: {}, show() { shows++; }, hide() { hides++; }, destroy() {} };
+  const entry = new GameClubEntry({ platform: { createGameClubButton: () => fakeBtn } });
+  entry.showAt(10, 20, 87, 32);
+  entry.showAt(10, 20, 87, 32);
+  entry.showAt(10, 20, 87, 32);
+  assertEq(shows, 1, 'same key must not re-show native button');
+  entry.showAt(30, 20, 87, 32);
+  assertEq(shows, 1, 'move must only update style');
+  assertEq(fakeBtn.style.left, 30);
+  entry.hide();
+  entry.hide();
+  assertEq(hides, 2, 'create-hide plus one explicit hide');
+  entry.showAt(30, 20, 87, 32);
+  assertEq(shows, 2, 'show again after hide');
+});
+
+test('throwing native show degrades instead of retrying per frame', () => {
+  let shows = 0;
+  const badBtn = { style: {}, show() { shows++; throw new Error('native:fail'); }, hide() {}, destroy() {} };
+  const entry = new GameClubEntry({ platform: { createGameClubButton: () => badBtn } });
+  entry.showAt(10, 20, 87, 32);
+  entry.showAt(10, 20, 87, 32);
+  entry.showAt(10, 20, 87, 32);
+  assertEq(shows, 1, 'must not retry a throwing native show');
+  assertEq(entry.available, false, 'degrade to unavailable');
+});
+
 section('Toast');
 
 test('toast expires after duration', () => {

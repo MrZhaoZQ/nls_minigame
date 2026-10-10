@@ -13,6 +13,7 @@ class ResultPanel {
     this.buttons = [];
     this.nextLabel = '下一关';
     this.doubleLabel = '看视频 金币翻倍';
+    this.doubleOffered = true;
     this.pressedId = null;
     this.pressedT = 0;
     this.rev = 0;
@@ -83,10 +84,14 @@ class ResultPanel {
     const bh = 44;
     this.panel = { x, y, w: pw, h: ph };
     this.buttons = [
-      { id: 'next', x: x + pw / 2 - bw / 2, y: y + ph - 64, w: bw, h: bh, label: this.nextLabel, primary: true },
-      { id: 'double', x: x + pw / 2 - bw / 2, y: y + ph - 120, w: bw, h: bh,
-        label: this.doubled ? '已翻倍' : this.doubleLabel, primary: false }
+      { id: 'next', x: x + pw / 2 - bw / 2, y: y + ph - 64, w: bw, h: bh, label: this.nextLabel, primary: true }
     ];
+    if (this.doubleOffered !== false) {
+      this.buttons.push({
+        id: 'double', x: x + pw / 2 - bw / 2, y: y + ph - 120, w: bw, h: bh,
+        label: this.doubled ? '已翻倍' : this.doubleLabel, primary: false
+      });
+    }
   }
 
   hitTest(x, y) {

@@ -11,12 +11,12 @@ class AdManager {
     this.now = o.now || (() => Platform.now());
     this.ad = null;
     this.pending = null;
-    this.startedAt = this.now();
     this.daily = SaveManager.getDailyAdInfo();
     this.lastShowTs = this.daily.lastShowTs || 0;
     this.levelId = 1;
     this.levelShows = {};
     this.onErrorCount = 0;
+    this.lastGrantTs = 0;
     this.events = [];
   }
 
@@ -44,7 +44,6 @@ class AdManager {
     const cfg = GameConfig.ad;
     this.daily = SaveManager.getDailyAdInfo();
     const now = this.now();
-    if (now - this.startedAt < cfg.coldStartMs) return { ok: false, reason: 'coldStart' };
     if (now - this.lastShowTs < cfg.cooldownMs) return { ok: false, reason: 'cooldown' };
     if (this.daily.count >= cfg.dailyLimit) return { ok: false, reason: 'dailyLimit' };
     if (placement && placement.indexOf('fail') === 0) {
@@ -80,6 +79,7 @@ class AdManager {
   _grant(placement) {
     const now = this.now();
     this.lastShowTs = now;
+    this.lastGrantTs = now;
     this.daily = SaveManager.recordAdShow();
     this.levelShows[placement] = (this.levelShows[placement] || 0) + 1;
     this.events.push({ type: 'rewarded', placement });

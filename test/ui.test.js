@@ -155,6 +155,24 @@ test('fallback capsule used when API missing', () => {
     'fallback undo must align with fallback capsule right edge');
 });
 
+section('ResultPanel');
+
+test('double button hidden when reward gated', () => {
+  const ResultPanel = require('../js/ui/ResultPanel');
+  const rp = new ResultPanel(375, 667);
+  rp.show(100, { stars: 3, costMs: 5000, moves: 10, balance: 100 });
+  rp._layout();
+  assert(rp.buttons.some(b => b.id === 'double'), 'double offered by default');
+  const rp2 = new ResultPanel(375, 667);
+  rp2.doubleOffered = false;
+  rp2.show(100, null);
+  rp2._layout();
+  assert(!rp2.buttons.some(b => b.id === 'double'), 'double hidden when gated');
+  assert(rp2.buttons.some(b => b.id === 'next'), 'next always present');
+  assertEq(rp2.hitTest(375 / 2, 330), null, 'no hit where double used to be');
+  assertEq(rp.hitTest(375 / 2, 330), 'double', 'hit when offered');
+});
+
 section('SlotUI safe area');
 
 test('slot bar lifts above home indicator inset', () => {

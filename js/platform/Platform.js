@@ -110,6 +110,14 @@ const Platform = {
     return { src, play() {}, stop() {}, destroy() {}, set volume(v) {}, get volume() { return 0; } };
   },
 
+  createInterstitialAd(adUnitId) {
+    if (_mock && _mock.createInterstitialAd) return _mock.createInterstitialAd(adUnitId);
+    if (hasWx() && adUnitId && wx.createInterstitialAd) {
+      return wx.createInterstitialAd({ adUnitId });
+    }
+    return null;
+  },
+
   createRewardedVideoAd(adUnitId) {
     if (_mock && _mock.createRewardedVideoAd) return _mock.createRewardedVideoAd(adUnitId);
     if (hasWx() && adUnitId && wx.createRewardedVideoAd) {
@@ -312,6 +320,7 @@ function createMockPlatform(overrides) {
       return { src: '', play() {}, stop() {}, destroy() {}, volume: 0 };
     },
     createRewardedVideoAd() { return null; },
+    createInterstitialAd() { return null; },
     vibrateShort() { mock.vibrations++; },
     reportEvent(name, params) { mock.reports.push({ name, params }); },
     showModal(opts) {

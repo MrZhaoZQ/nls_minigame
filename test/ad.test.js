@@ -8,7 +8,7 @@ const GameConfig = require('../js/config/GameConfig');
 function setup() {
   const mock = Platform.createMockPlatform();
   Platform.inject(mock);
-  let clock = GameConfig.ad.coldStartMs + 10;
+  let clock = 50000;
   const ad = new AdManager({ now: () => clock });
   ad.startedAt = 0;
   return { ad, mock, setClock: (v) => { clock = v; } };
@@ -25,12 +25,13 @@ test('mock ad grants reward', () => {
   Platform.inject(null);
 });
 
-test('cold start blocks ads', () => {
+test('rewarded ads are user-initiated: no cold-start block', () => {
   const { ad } = setup();
-  ad.startedAt = 1000;
-  const gate = ad.canShow('hint');
-  assertEq(gate.ok, false);
-  assertEq(gate.reason, 'coldStart');
+  ad.startedAt = 0;
+  const gate = ad.canShow('win_double');
+  assertEq(gate.ok, true, 'win_double must be available right after launch');
+  const failGate = ad.canShow('fail_undo');
+  assertEq(failGate.ok, true, 'fail rescue must be available right after launch');
   Platform.inject(null);
 });
 
@@ -87,7 +88,7 @@ function setupReal(isEndedResult) {
     createRewardedVideoAd: () => fakeAd
   });
   Platform.inject(mock);
-  const clock = { v: GameConfig.ad.coldStartMs + 10 };
+  const clock = { v: 50000 };
   const ad = new AdManager({ unitId: 'adunit-real', now: () => clock.v });
   ad.startedAt = 0;
   ad.init();
@@ -111,5 +112,75 @@ test('skipped ad not rewarded', () => {
   fireClose({ isEnded: false });
   assert(result && result.rewarded === false);
   assertEq(result.reason, 'skipped');
+  Platform.inject(null);
+});
+
+section('InterstitialManager');
+
+const InterstitialManager = require('../js/ad/InterstitialManager');
+
+function fakeInterAd() {
+  return {
+    shown: 0,
+    show() { this.shown++; return { catch: () => ({ then: () => {} }) }; },
+    load() { return { then: () => ({ catch: () => {} }) }; },
+    onError() {}
+  };
+}
+
+function setupInter(opts) {
+  const o = opts || {};
+  const mock = Platform.createMockPlatform({
+    createInterstitialAd: () => (o.noAd ? null : fakeInterAd())
+  });
+  Platform.inject(mock);
+  let clock = 0;
+  const im = new InterstitialManager({ now: () => clock, adMgr: o.adMgr || null });
+  im.init();
+  return { im, setClock: (v) => { clock = v; } };
+}
+
+test('interstitial no-op without platform ad', () => {
+  const { im } = setupInter({ noAd: true });
+  const gate = im.maybeShow(10);
+  assertEq(gate.reason, 'mock');
+  assertEq(im.shownCount, 0);
+  Platform.inject(null);
+});
+
+test('interstitial gating chain', () => {
+  const { im, setClock } = setupInter();
+  assertEq(im.canShow(5).reason, 'coldStart');
+  setClock(GameConfig.ad.interColdStartMs + 10);
+  assertEq(im.canShow(3).reason, 'protected');
+  assertEq(im.canShow(4).reason, 'winGap');
+  im.noteWin(); im.noteWin(); im.noteWin();
+  assertEq(im.canShow(4).ok, true);
+  im.maybeShow(4);
+  assertEq(im.ad.shown, 1);
+  assertEq(im.winsSinceShow, 0);
+  assertEq(im.shownCount, 1);
+  im.noteWin(); im.noteWin(); im.noteWin();
+  assertEq(im.canShow(4).reason, 'cooldown');
+  setClock(GameConfig.ad.interColdStartMs + GameConfig.ad.interCooldownMs + 20);
+  assertEq(im.canShow(4).ok, true);
+  Platform.storage.set('screwmaster_intercount', JSON.stringify({
+    date: new Date(Date.now()).toDateString(),
+    count: GameConfig.ad.interDailyLimit,
+    lastShowTs: 0
+  }));
+  assertEq(im.canShow(4).reason, 'dailyLimit');
+  Platform.inject(null);
+});
+
+test('interstitial suppressed right after rewarded grant', () => {
+  const adMgr = { lastGrantTs: 0 };
+  const { im, setClock } = setupInter({ adMgr: adMgr });
+  setClock(GameConfig.ad.interColdStartMs + 10);
+  im.noteWin(); im.noteWin(); im.noteWin();
+  adMgr.lastGrantTs = GameConfig.ad.interColdStartMs;
+  assertEq(im.canShow(5).reason, 'afterRewarded');
+  adMgr.lastGrantTs = 1000;
+  assertEq(im.canShow(5).ok, true);
   Platform.inject(null);
 });

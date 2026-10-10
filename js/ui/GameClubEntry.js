@@ -39,13 +39,21 @@ class GameClubEntry {
     });
     this.button = btn || false;
     this.available = !!btn;
-    if (btn && btn.hide) btn.hide();
+    if (btn && btn.hide) {
+      try { btn.hide(); } catch (e) { this.available = false; }
+    }
+  }
+
+  _key(x, y, w, hh) {
+    return Math.round(x) + ',' + Math.round(y) + ',' + Math.round(w) + ',' + Math.round(hh);
   }
 
   showAt(x, y, w, h) {
     this._ensure();
     if (!this.available) return;
     const hh = Math.round(h || BASE_STYLE.height);
+    const key = this._key(x, y, w || BASE_STYLE.width, hh);
+    if (this.shown && key === this._posKey) return;
     const st = this.button.style || (this.button.style = {});
     st.left = Math.round(x);
     st.top = Math.round(y);
@@ -53,14 +61,16 @@ class GameClubEntry {
     st.height = hh;
     st.lineHeight = hh;
     st.borderRadius = Math.round(hh / 2);
-    if (this.button.show) this.button.show();
+    if (!this.shown && this.button.show) {
+      try { this.button.show(); } catch (e) { this.available = false; return; }
+    }
     this.shown = true;
-    this._posKey = st.left + ',' + st.top + ',' + st.width;
+    this._posKey = key;
   }
 
   hide() {
     if (this.available && this.shown && this.button.hide) {
-      this.button.hide();
+      try { this.button.hide(); } catch (e) {}
     }
     this.shown = false;
     this._posKey = '';
