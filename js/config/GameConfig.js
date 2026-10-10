@@ -13,7 +13,7 @@ const GameConfig = {
               fallDist: 2.5, queueGap: 0.2 },
   ad: { unitId: 'adunit-5d823507f82ee7ab', mode: 'ad', cooldownMs: 45000, dailyLimit: 15,
         perLevelLimit: 2,
-        interUnitId: 'adunit-d11de76248f20c6a', interColdStartMs: 120000,
+        interUnitId: 'adunit-d11de76248f20c6a',
         interCooldownMs: 90000, interDailyLimit: 8, interProtectedLevels: 3,
         interWinGap: 3, interAfterRewardedMs: 60000 },
   share: {

@@ -20,7 +20,6 @@ class ShareManager {
   constructor(opts) {
     const o = opts || {};
     this.now = o.now || (() => Platform.now());
-    this.startedAt = this.now();
     this.lastShareTs = 0;
     this.daily = SaveManager.getDailyShareInfo();
     this.levelId = 1;

@@ -11,7 +11,6 @@ class InterstitialManager {
     this.now = o.now || (() => Platform.now());
     this.adMgr = o.adMgr || null;
     this.ad = null;
-    this.startedAt = this.now();
     this.lastShowTs = 0;
     this.winsSinceShow = 0;
     this.shownCount = 0;
@@ -39,9 +38,6 @@ class InterstitialManager {
     const cfg = GameConfig.ad;
     if (this.isMock()) return { ok: false, reason: 'mock' };
     const now = this.now();
-    if (now - this.startedAt < cfg.interColdStartMs) {
-      return { ok: false, reason: 'coldStart' };
-    }
     if ((levelId || 0) <= cfg.interProtectedLevels) {
       return { ok: false, reason: 'protected' };
     }

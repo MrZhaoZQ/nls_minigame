@@ -378,7 +378,7 @@ module.exports = {
 
 | 频控项 | 数值 |
 |---|---|
-| 冷启动禁弹 | **无**——激励视频全部为玩家主动点击（拉式），冷启动保护仅约束插屏（`interColdStartMs`） |
+| 冷启动禁弹 | **无**——激励与插屏均为自然停顿点触发且受间隔/胜利数闸门约束，不设冷启动窗口 |
 | 相邻间隔 | ≥45s（`cooldownMs`） |
 | 每日上限 | 15 次（`dailyLimit`，日计数每次 `canShow` 重新读盘，跨天翻滚） |
 | 单关上限 | `fail*` 位各 ≤2 次/关（`perLevelLimit`），换关清零 |
@@ -393,7 +393,6 @@ module.exports = {
 | 新手保护 | 前 3 关（`interProtectedLevels`）不弹 |
 | 胜利间隔 | 两次插屏之间 ≥3 次通关（`interWinGap`，`noteWin()` 计数） |
 | 相邻间隔 | ≥90s（`interCooldownMs`） |
-| 冷启动 | 启动后 120s 内不弹（`interColdStartMs`） |
 | 每日上限 | 8 次（`interDailyLimit`，独立日计数 `screwmaster_intercount`） |
 | 激励互斥 | 激励视频发奖后 60s 内不弹（`interAfterRewardedMs`，读 `AdManager.lastGrantTs`） |
 
@@ -727,7 +726,7 @@ const GameConfig = {
               fallDist: 2.5, queueGap: 0.2 },
   ad: { unitId: 'adunit-5d823507f82ee7ab', mode: 'ad', cooldownMs: 45000, dailyLimit: 15,
         perLevelLimit: 2,
-        interUnitId: 'adunit-d11de76248f20c6a', interColdStartMs: 120000,
+        interUnitId: 'adunit-d11de76248f20c6a',
         interCooldownMs: 90000, interDailyLimit: 8, interProtectedLevels: 3,
         interWinGap: 3, interAfterRewardedMs: 60000 },
   share: {

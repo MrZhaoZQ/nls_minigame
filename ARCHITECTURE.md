@@ -171,8 +171,8 @@ undoStack.push({entry, slotSnapshot})   // 快照在入槽前拍
 `GameConfig.ad.mode`：`'ad'`（**当前**，流量主已开通、激励位已接）或 `'share'`（回退开关）。
 main.js 按 mode 选择 `rewardProvider`（`ShareManager` 或 `AdManager`），两者**同接口** `show(placement, cb) / canShow(placement) / setLevel(id)`，四个奖励位（fail_undo/fail_clear/hint/win_double）与全部文案（失败面板/结算面板/帮助面板）随模式自动切换，业务代码零改动。
 
-- **AdManager 频控**：激励位全为玩家主动点击，**无冷启动限制**（冷启动仅约束插屏）→ 相邻 ≥45s → 每日 ≤15 → `fail*` 每关 ≤2。测试桩无广告 API = mock 直发奖励。结算「翻倍」按钮按 `canShow('win_double')` 动态隐藏（与失败面板同模式），避免"可见但被频控拒绝"。
-- **InterstitialManager 闸门**（`GameConfig.ad.inter*`）：仅胜利结算「下一关」转场调 `maybeShow(levelId)`；前 3 关不弹 → 两次插屏间隔 ≥3 次通关（`noteWin()` 计数）→ 相邻 ≥90s → 冷启动 ≥120s → 每日 ≤8（独立日计数 `screwmaster_intercount`）→ 激励发奖后 60s 内不弹（读 `AdManager.lastGrantTs`）。失败/暂停/回归/进关路径不接调用点。
+- **AdManager 频控**：激励位全为玩家主动点击，**无冷启动限制** → 相邻 ≥45s → 每日 ≤15 → `fail*` 每关 ≤2。测试桩无广告 API = mock 直发奖励。结算「翻倍」按钮按 `canShow('win_double')` 动态隐藏（与失败面板同模式），避免"可见但被频控拒绝"。
+- **InterstitialManager 闸门**（`GameConfig.ad.inter*`）：仅胜利结算「下一关」转场调 `maybeShow(levelId)`；前 3 关不弹 → 两次插屏间隔 ≥3 次通关（`noteWin()` 计数，无冷启动窗口）→ 相邻 ≥90s → 每日 ≤8（独立日计数 `screwmaster_intercount`）→ 激励发奖后 60s 内不弹（读 `AdManager.lastGrantTs`）。失败/暂停/回归/进关路径不接调用点。
 - **ShareManager 频控**：相邻 ≥5s → 每日 ≤30 → `fail*` 每关 ≤3；`wx.shareAppMessage` 的 success 回调才发奖（取消不发），分享计数独立存储（SaveManager.recordShare）。
 - **胶囊分享**：启动时 `showShareMenu({menus:['shareAppMessage','shareTimeline']})` 点亮双按钮；`onShareAppMessage`/`onShareTimeline` 均带动态关卡文案+审核图（`imageUrl`+`imageUrlId`）+回流 query。
 - **分享回流**：冷启动走 `getLaunchOptions`、**热启动走 `onShow(res.query)`** 双路径解析 level，超解锁回落选关页；日计数每次 `canShow` 重新读取，跨天自动翻滚。
@@ -308,7 +308,7 @@ PIL 脚本现画：`logo.png` 为 4 倍超采样+圆角 mask+floodfill 裁角；
 | 点螺丝无反应 | InputManager.locked（坍塌队列/拧出中）→ 螺丝 state 是否 locked → Raycaster 遮挡 |
 | 画面不刷新 | tick 是否启动（env 判断）→ Platform.raf mock 是否吞帧（测试环境） |
 | 槽位残留旧螺丝 | `LEVEL_LOADED` 是否被 SlotUI 收到（重置唯一入口） |
-| 广告不弹 | AdManager.canShow 的 reason（cooldown/dailyLimit/perLevel；激励无冷启动限制）；插屏另看 inter* 闸门（coldStart/protected/winGap/cooldown/dailyLimit/afterRewarded） |
+| 广告不弹 | AdManager.canShow 的 reason（cooldown/dailyLimit/perLevel；激励无冷启动限制）；插屏另看 inter* 闸门（protected/winGap/cooldown/dailyLimit/afterRewarded） |
 | 音效不响 | 是否 unlock（首次点击）→ audio/*.wav 是否存在 → _failed 标记 |
 | BGM 安卓不响 | 素材是否 22050Hz（采样率异常是安卓无声首因）→ `bgmOn`/`muted` 状态 → `_bgmAttempts` 是否达 3 放弃 → ensureBgm 是否被 onShow 调到 |
 | 关卡死局 | `node scripts/headlessPlaythrough.js` 复现 → validator runs 提高 → 换 seed/加槽 |

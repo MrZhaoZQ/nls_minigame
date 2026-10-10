@@ -1,4 +1,4 @@
-'use strict';
+﻿'use strict';
 
 const { assert, assertEq, section, test } = require('./harness');
 const Platform = require('../js/platform/Platform');
@@ -10,7 +10,6 @@ function setup() {
   Platform.inject(mock);
   let clock = 50000;
   const ad = new AdManager({ now: () => clock });
-  ad.startedAt = 0;
   return { ad, mock, setClock: (v) => { clock = v; } };
 }
 
@@ -27,7 +26,6 @@ test('mock ad grants reward', () => {
 
 test('rewarded ads are user-initiated: no cold-start block', () => {
   const { ad } = setup();
-  ad.startedAt = 0;
   const gate = ad.canShow('win_double');
   assertEq(gate.ok, true, 'win_double must be available right after launch');
   const failGate = ad.canShow('fail_undo');
@@ -90,7 +88,6 @@ function setupReal(isEndedResult) {
   Platform.inject(mock);
   const clock = { v: 50000 };
   const ad = new AdManager({ unitId: 'adunit-real', now: () => clock.v });
-  ad.startedAt = 0;
   ad.init();
   return { ad, fireClose: (res) => closeCb(res) };
 }
@@ -150,8 +147,7 @@ test('interstitial no-op without platform ad', () => {
 
 test('interstitial gating chain', () => {
   const { im, setClock } = setupInter();
-  assertEq(im.canShow(5).reason, 'coldStart');
-  setClock(GameConfig.ad.interColdStartMs + 10);
+  setClock(91000);
   assertEq(im.canShow(3).reason, 'protected');
   assertEq(im.canShow(4).reason, 'winGap');
   im.noteWin(); im.noteWin(); im.noteWin();
@@ -162,7 +158,7 @@ test('interstitial gating chain', () => {
   assertEq(im.shownCount, 1);
   im.noteWin(); im.noteWin(); im.noteWin();
   assertEq(im.canShow(4).reason, 'cooldown');
-  setClock(GameConfig.ad.interColdStartMs + GameConfig.ad.interCooldownMs + 20);
+  setClock(91000 + GameConfig.ad.interCooldownMs + 20);
   assertEq(im.canShow(4).ok, true);
   Platform.storage.set('screwmaster_intercount', JSON.stringify({
     date: new Date(Date.now()).toDateString(),
@@ -176,9 +172,9 @@ test('interstitial gating chain', () => {
 test('interstitial suppressed right after rewarded grant', () => {
   const adMgr = { lastGrantTs: 0 };
   const { im, setClock } = setupInter({ adMgr: adMgr });
-  setClock(GameConfig.ad.interColdStartMs + 10);
+  setClock(91000);
   im.noteWin(); im.noteWin(); im.noteWin();
-  adMgr.lastGrantTs = GameConfig.ad.interColdStartMs;
+  adMgr.lastGrantTs = 90000;
   assertEq(im.canShow(5).reason, 'afterRewarded');
   adMgr.lastGrantTs = 1000;
   assertEq(im.canShow(5).ok, true);
