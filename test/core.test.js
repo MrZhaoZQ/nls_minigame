@@ -97,3 +97,17 @@ test('showModal override can cancel', () => {
   assertEq(got.cancel, true);
   Platform.inject(null);
 });
+
+test('setUserCloudStorage sends KVDataList array to wx', () => {
+  Platform.inject(null);
+  let captured = null;
+  global.wx = { setUserCloudStorage: (opts) => { captured = opts; } };
+  Platform.setUserCloudStorage([{ key: 'k', value: 'v' }]);
+  assert(captured, 'wx called');
+  assert(Array.isArray(captured.KVDataList), 'KVDataList must be an array');
+  assertEq(captured.KVDataList[0].key, 'k');
+  captured = null;
+  Platform.setUserCloudStorage({ key: 'k', value: 'v' });
+  assertEq(captured, null, 'non-array payload rejected');
+  delete global.wx;
+});

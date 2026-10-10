@@ -136,6 +136,7 @@ const Platform = {
   },
 
   setUserCloudStorage(kvList) {
+    if (!kvList || kvList.constructor !== Array) return;
     if (_mock) {
       _mock.cloudStorage = (_mock.cloudStorage || []).concat([kvList]);
       return;
@@ -143,7 +144,7 @@ const Platform = {
     if (hasWx() && wx.setUserCloudStorage) {
       const attempt = (n) => {
         wx.setUserCloudStorage({
-          KVData: kvList,
+          KVDataList: kvList,
           success() {},
           fail(err) {
             if (n > 0) setTimeout(() => attempt(n - 1), 2000);
