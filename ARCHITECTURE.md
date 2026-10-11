@@ -110,16 +110,17 @@ Platform.getSystemInfo / createCanvas
 ## 3. 输入路由（main.js input.onTap 优先级）
 
 ```
-1. levelSelect 可见？    → level=进关 / expand=邀好友扩容 / locked=toast
-2. pausePanel 可见？     → resume/sound/help/menu/restart
+1. pausedReturn？        → 任意 touchstart 即关闭（独立触摸监听）；同手势 tap 被吞防穿透
+2. tutorial 第3步？      → 只响应「知道了」
 3. helpPanel 可见？      → 只响应 ✕ 关闭，其余吞掉
-4. pausedReturn？        → 任意 touchstart 即关闭（独立于 InputManager 的触摸监听，长按/微移/输入锁均有效；同手势的点击被吞防穿透。后台 >60s 回归提示）
-5. tutorial 第3步？      → 只响应「知道了」
-6. resultPanel 命中？    → next=下一关 / double=奖励翻倍
-7. failPanel 命中？      → retry / adUndo / adClear（奖励回调成功才生效）
+4. failPanel 命中？      → retry/adUndo/adClear/coinUndo（奖励回调成功才生效）
+5. resultPanel 命中？    → next=下一关（先过插屏闸门）/ double=奖励翻倍
+6. pausePanel 可见？     → resume/sound/help/menu/restart
+7. levelSelect 可见？    → level=进关 / expand=邀好友扩容 / locked=toast
 8. topBar 命中？         → pause/help/hint/undo
 9. 其余                  → game.handleTap(x,y)（射线拾取螺丝）
 ```
+**输入优先级 = 绘制层级**（弹窗 > 面板 > 菜单 > 顶栏），杜绝"视觉在上、输入在下"的层错位；`showMenu()` 会主动隐藏 result/fail/pause 面板，禁止结算弹窗与选关页共存。
 拖拽路由：`helpPanel 可见 → 面板滚动(带惯性)`；`暂停/选关 → 冻结`；tutorial 第0步的拖拽会推进引导并点亮首颗螺丝；其余 `camCtrl.onDrag`。`onDragEnd(vx, vy)` 同时提供两轴速度（相机惯性用 vx，帮助面板惯性用 vy）。
 
 **启动流程**：首次（tutorial 未完成）直接进第 1 关跑引导；否则进 `levelSelect` 选关菜单。

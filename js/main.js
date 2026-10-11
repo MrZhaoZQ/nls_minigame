@@ -237,6 +237,9 @@ function bootstrap() {
     app.inMenu = true;
     app.pausedReturn = false;
     input.setLocked(false);
+    resultPanel.hide();
+    failPanel.hide();
+    pausePanel.hide();
     const total = GameConfig.levels.totalShipped;
     const list = [];
     for (let i = 1; i <= total; i++) list.push(i);
@@ -344,62 +347,16 @@ function bootstrap() {
       return;
     }
 
-    if (levelSelect.visible) {
-      const hit = levelSelect.hitTest(x, y);
-      if (hit) levelSelect.setPressed(hit.type === 'level' ? 'l' + hit.id : hit.type);
-      if (hit && hit.type === 'level') startLevelById(hit.id);
-      else if (hit && hit.type === 'expand') {
-        if (slotManager.capacity >= GameConfig.slot.maxCount) {
-          toast.show('槽位已满级');
-          return;
-        }
-        if (!SaveManager.canExpandCapacityToday()) {
-          toast.show('今日扩容已用过');
-          return;
-        }
-        rewardProvider.show('capacity', (res) => {
-          if (!res.rewarded) { rewardFailToast(res); return; }
-          SaveManager.addExtraCapacity();
-          SaveManager.recordCapacityExpand();
-          game.setExtraCapacity(SaveManager.getExtraCapacity());
-          toast.show('暂存槽永久 +1！');
-          showMenu();
-        });
-      } else if (hit && hit.type === 'locked') {
-        toast.show('通关前面的关卡才可解锁哦');
-      }
-      return;
-    }
-
-    if (pausePanel.visible) {
-      const ph = pausePanel.hitTest(x, y);
-      if (ph) pausePanel.setPressed(ph);
-      if (ph === 'resume') pausePanel.hide();
-      else if (ph === 'sound') {
-        audio.setMuted(!audio.muted);
-        pausePanel.muted = audio.muted;
-      } else if (ph === 'help') {
-        pausePanel.hide();
-        helpPanel.show();
-      } else if (ph === 'menu') {
-        pausePanel.hide();
-        showMenu();
-      } else if (ph === 'restart') {
-        startLevelById(app.currentLevelId);
+    if (tutorial.active && tutorial.step === 2) {
+      if (tutorial.hitTest(x, y) === 'ok') {
+        tutorial.done();
+        SaveManager.setTutorialDone();
       }
       return;
     }
 
     if (helpPanel.visible) {
       if (helpPanel.hitTest(x, y) === 'close') helpPanel.hide();
-      return;
-    }
-
-    if (tutorial.active && tutorial.step === 2) {
-      if (tutorial.hitTest(x, y) === 'ok') {
-        tutorial.done();
-        SaveManager.setTutorialDone();
-      }
       return;
     }
 
@@ -477,6 +434,52 @@ function bootstrap() {
         topBar.setUndoQuota(game.freeUndoLeft + game.adUndoLeft);
         topBar.setRemaining(game.totalRemainingOnBoards());
         toast.show('已消耗 ' + GameConfig.economy.rescueCost + ' 金币');
+      }
+      return;
+    }
+
+    if (pausePanel.visible) {
+      const ph = pausePanel.hitTest(x, y);
+      if (ph) pausePanel.setPressed(ph);
+      if (ph === 'resume') pausePanel.hide();
+      else if (ph === 'sound') {
+        audio.setMuted(!audio.muted);
+        pausePanel.muted = audio.muted;
+      } else if (ph === 'help') {
+        pausePanel.hide();
+        helpPanel.show();
+      } else if (ph === 'menu') {
+        pausePanel.hide();
+        showMenu();
+      } else if (ph === 'restart') {
+        startLevelById(app.currentLevelId);
+      }
+      return;
+    }
+
+    if (levelSelect.visible) {
+      const lsHit = levelSelect.hitTest(x, y);
+      if (lsHit) levelSelect.setPressed(lsHit.type === 'level' ? 'l' + lsHit.id : lsHit.type);
+      if (lsHit && lsHit.type === 'level') startLevelById(lsHit.id);
+      else if (lsHit && lsHit.type === 'expand') {
+        if (slotManager.capacity >= GameConfig.slot.maxCount) {
+          toast.show('槽位已满级');
+          return;
+        }
+        if (!SaveManager.canExpandCapacityToday()) {
+          toast.show('今日扩容已用过');
+          return;
+        }
+        rewardProvider.show('capacity', (res) => {
+          if (!res.rewarded) { rewardFailToast(res); return; }
+          SaveManager.addExtraCapacity();
+          SaveManager.recordCapacityExpand();
+          game.setExtraCapacity(SaveManager.getExtraCapacity());
+          toast.show('暂存槽永久 +1！');
+          showMenu();
+        });
+      } else if (lsHit && lsHit.type === 'locked') {
+        toast.show('通关前面的关卡才可解锁哦');
       }
       return;
     }

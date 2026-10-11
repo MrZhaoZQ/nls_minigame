@@ -127,6 +127,58 @@ test('bootstrap + play level to win via simulated taps', () => {
   delete require.cache[require.resolve('../js/main')];
 });
 
+test('result panel outranks level select and menu clears dialogs', () => {
+  let clock = 0;
+  const frames = [];
+  const mock = require('../js/platform/Platform').createMockPlatform({
+    createCanvas: () => null,
+    raf: (cb) => { frames.push(cb); return frames.length; },
+    now: () => clock
+  });
+  const Platform = require('../js/platform/Platform');
+  Platform.inject(mock);
+  delete require.cache[require.resolve('../js/main')];
+  const app = require('../js/main')();
+
+  const stepFrames = (n, dtMs) => {
+    for (let i = 0; i < n; i++) {
+      clock += dtMs;
+      const cb = frames.shift();
+      if (cb) cb(clock);
+    }
+  };
+  const tapAt = (x, y) => {
+    mock.touchHandlers.start.forEach(h => h({ touches: [{ identifier: 0, clientX: x, clientY: y }], changedTouches: [{ identifier: 0, clientX: x, clientY: y }] }));
+    mock.touchHandlers.end.forEach(h => h({ touches: [], changedTouches: [{ identifier: 0, clientX: x, clientY: y }] }));
+  };
+
+  stepFrames(2, 16);
+  app.tutorial.done();
+  app.startLevelById(2);
+  stepFrames(2, 16);
+
+  app.resultPanel.show(10, null);
+  app.showMenu();
+  assertEq(app.resultPanel.visible, false, 'showMenu clears result panel');
+  app.failPanel.show({});
+  app.showMenu();
+  assertEq(app.failPanel.visible, false, 'showMenu clears fail panel');
+
+  app.levelSelect.show({
+    levels: [1, 2, 3], unlocked: 3, results: {}, capacity: 5, coins: 0, canExpand: false
+  });
+  app.resultPanel.show(10, null);
+  app.resultPanel._layout();
+  const nb = app.resultPanel.buttons.find(b => b.id === 'next');
+  tapAt(nb.x + nb.w / 2, nb.y + nb.h / 2);
+  stepFrames(2, 16);
+  assertEq(app.currentLevelId, 3, 'result next tap works while level select visible');
+  assertEq(app.levelSelect.visible, false, 'next level hides menu');
+
+  Platform.inject(null);
+  delete require.cache[require.resolve('../js/main')];
+});
+
 test('coin purchases go through modal confirm', () => {
   let clock = 0;
   const frames = [];
