@@ -4,6 +4,8 @@ const BOARD_W = 3.6;
 const BOARD_D = 1.2;
 const HEAD_R = 0.16;
 const SCREW_MIN_DIST = 0.5;
+const TIGHT_FROM_LEVEL = 6;
+const TIGHT_MIN_RATE = 0.3;
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -33,7 +35,7 @@ function totalScrews(level) {
   return n;
 }
 
-function simulate(level, runs, capacityOverride, rng, deterministic) {
+function simulate(level, runs, capacityOverride, rng, deterministic, stopAtFirstDeath) {
   const capacity = capacityOverride || level.slotCount;
   const baseRand = rng || mulberry32(9999);
   const rand = deterministic ? (() => 0) : baseRand;
@@ -145,6 +147,7 @@ function simulate(level, runs, capacityOverride, rng, deterministic) {
     }
 
     if (dead) deaths++;
+    if (stopAtFirstDeath && deaths > 0) break;
   }
 
   return { deathRate: deaths / runs, deaths, runs };
@@ -154,6 +157,8 @@ function validate(level, opts) {
   const errors = [];
   const o = opts || {};
   const runs = o.runs || 100;
+  const tightFrom = o.tightFrom != null ? o.tightFrom : TIGHT_FROM_LEVEL;
+  const tightMin = o.tightMin != null ? o.tightMin : TIGHT_MIN_RATE;
 
   const boardIds = {};
   for (let i = 0; i < level.boards.length; i++) {
@@ -241,36 +246,74 @@ function validate(level, opts) {
   const randA = mulberry32((4242 + level.id * 101) >>> 0);
   const randB = mulberry32((777 + level.id * 13) >>> 0);
   const randC = mulberry32((999 + level.id * 7) >>> 0);
-  const det1 = simulate(level, 1, level.slotCount, mulberry32(7), true);
-  const simA1 = simulate(level, runs, level.slotCount, randA);
-  const simB1 = simulate(level, runs, level.slotCount, randB);
-  const simC1 = simulate(level, runs, level.slotCount, randC);
-  if (simA1.deathRate === 0 && simB1.deathRate === 0 &&
-      simC1.deathRate === 0 && det1.deathRate === 0) {
-    return { ok: true, errors: [], deathRate: 0, adjustedSlotCount: level.slotCount };
+
+  function evalCapacity(capacity) {
+    const sims = [
+      () => simulate(level, 1, capacity, mulberry32(7), true, true),
+      () => simulate(level, runs, capacity, randA, false, true),
+      () => simulate(level, runs, capacity, randB, false, true),
+      () => simulate(level, runs, capacity, randC, false, true)
+    ];
+    let maxRate = 0;
+    for (let i = 0; i < sims.length; i++) {
+      const s = sims[i]();
+      if (s.deathRate > maxRate) maxRate = s.deathRate;
+      if (s.deaths > 0) return { ok: false, deathRate: maxRate };
+    }
+    return { ok: true, deathRate: 0 };
   }
 
-  const det2 = simulate(level, 1, level.slotCount + 1, mulberry32(7), true);
-  const simA2 = simulate(level, runs, level.slotCount + 1, randA);
-  const simB2 = simulate(level, runs, level.slotCount + 1, randB);
-  const simC2 = simulate(level, runs, level.slotCount + 1, randC);
-  if (simA2.deathRate === 0 && simB2.deathRate === 0 &&
-      simC2.deathRate === 0 && det2.deathRate === 0) {
-    return {
-      ok: true, errors: [],
-      deathRate: Math.max(simA1.deathRate, simB1.deathRate, simC1.deathRate),
-      adjustedSlotCount: level.slotCount + 1,
-      note: 'auto +1 slot'
-    };
-  }
+  const base = evalCapacity(level.slotCount);
+  if (base.ok) return finish(level.slotCount, null);
+
+  const plus = evalCapacity(level.slotCount + 1);
+  if (plus.ok) return finish(level.slotCount + 1, 'auto +1 slot');
 
   return {
     ok: false,
-    errors: ['unsolvable: deathRate ' +
-      Math.max(simA2.deathRate, simB2.deathRate, simC2.deathRate) + ' even with +1 slot'],
-    deathRate: Math.max(simA2.deathRate, simB2.deathRate, simC2.deathRate),
+    errors: ['unsolvable: deathRate ' + plus.deathRate + ' even with +1 slot'],
+    deathRate: plus.deathRate,
     adjustedSlotCount: null
   };
+
+  function finish(capacity, note) {
+    if (level.id < tightFrom) {
+      return { ok: true, errors: [], deathRate: 0, adjustedSlotCount: capacity, note: note };
+    }
+    const rate = measureTight(capacity - 1);
+    if (rate < tightMin) {
+      return {
+        ok: false,
+        errors: ['loose: deathRate at ' + (capacity - 1) + ' slots = ' +
+          rate + ' < ' + tightMin],
+        deathRate: rate,
+        adjustedSlotCount: null
+      };
+    }
+    return {
+      ok: true, errors: [], deathRate: 0, adjustedSlotCount: capacity,
+      note: note, tightRate: rate
+    };
+  }
+
+  function measureTight(capacity) {
+    const tA = mulberry32((31337 + level.id * 17) >>> 0);
+    const tB = mulberry32((65577 + level.id * 29) >>> 0);
+    const tC = mulberry32((12347 + level.id * 41) >>> 0);
+    const sets = [
+      simulate(level, 1, capacity, mulberry32(7), true),
+      simulate(level, runs, capacity, tA),
+      simulate(level, runs, capacity, tB),
+      simulate(level, runs, capacity, tC)
+    ];
+    let deaths = 0;
+    let total = 0;
+    for (let i = 0; i < sets.length; i++) {
+      deaths += sets[i].deaths;
+      total += sets[i].runs;
+    }
+    return deaths / total;
+  }
 }
 
 module.exports = { validate, simulate, colorTotals, totalScrews };

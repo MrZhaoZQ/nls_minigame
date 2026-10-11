@@ -8,8 +8,7 @@ module.exports = {
     "blue",
     "yellow",
     "green",
-    "purple",
-    "orange"
+    "purple"
   ],
   "slotCount": 6,
   "gridSize": 10,
@@ -18,9 +17,9 @@ module.exports = {
       "id": "b1",
       "prefab": "Board_Single",
       "position": [
-        -2.1470805960008876,
+        0.20788622868712991,
         0,
-        0.07472235646564512
+        -0.040513340453617264
       ],
       "rotation": [
         0,
@@ -32,29 +31,30 @@ module.exports = {
         {
           "id": "h1",
           "pos": [
-            0.7,
+            -0.7,
             0,
             0.26
           ],
-          "color": "purple",
+          "color": "yellow",
           "coveredBy": [
-            "b3",
-            "b5",
-            "b7"
+            "b2",
+            "b4",
+            "b6",
+            "b8"
           ]
         },
         {
           "id": "h2",
           "pos": [
-            1.4,
+            -1.4,
             0,
             -0.26
           ],
-          "color": "purple",
+          "color": "blue",
           "coveredBy": [
-            "b3",
-            "b5",
-            "b7"
+            "b2",
+            "b4",
+            "b8"
           ]
         },
         {
@@ -62,27 +62,27 @@ module.exports = {
           "pos": [
             0,
             0,
-            0.26
+            -0.26
           ],
-          "color": "blue",
+          "color": "red",
           "coveredBy": [
-            "b3",
-            "b5",
-            "b7"
+            "b7",
+            "b8"
           ]
         },
         {
           "id": "h4",
           "pos": [
+            -1.4,
             0,
-            0,
-            -0.26
+            0.26
           ],
-          "color": "purple",
+          "color": "yellow",
           "coveredBy": [
-            "b3",
-            "b5",
-            "b7"
+            "b2",
+            "b4",
+            "b6",
+            "b8"
           ]
         },
         {
@@ -90,13 +90,28 @@ module.exports = {
           "pos": [
             0.7,
             0,
-            -0.26
+            0.26
           ],
           "color": "red",
           "coveredBy": [
             "b3",
             "b5",
-            "b7"
+            "b7",
+            "b8"
+          ]
+        },
+        {
+          "id": "h6",
+          "pos": [
+            1.4,
+            0,
+            -0.26
+          ],
+          "color": "green",
+          "coveredBy": [
+            "b3",
+            "b7",
+            "b8"
           ]
         }
       ]
@@ -105,9 +120,9 @@ module.exports = {
       "id": "b2",
       "prefab": "Board_Single",
       "position": [
-        2.03840565639548,
-        0,
-        0.23984292047098277
+        -2.1142737654037775,
+        1,
+        -0.2429087501950562
       ],
       "rotation": [
         0,
@@ -119,37 +134,22 @@ module.exports = {
         {
           "id": "h1",
           "pos": [
-            1.4,
+            -0.7,
             0,
-            -0.26
+            0.26
           ],
-          "color": "red",
+          "color": "yellow",
           "coveredBy": [
             "b4",
-            "b6",
-            "b8"
+            "b6"
           ]
         },
         {
           "id": "h2",
           "pos": [
-            -0.7,
+            0.7,
             0,
-            -0.26
-          ],
-          "color": "red",
-          "coveredBy": [
-            "b4",
-            "b6",
-            "b8"
-          ]
-        },
-        {
-          "id": "h3",
-          "pos": [
-            0,
-            0,
-            -0.26
+            0.26
           ],
           "color": "blue",
           "coveredBy": [
@@ -159,9 +159,165 @@ module.exports = {
           ]
         },
         {
+          "id": "h3",
+          "pos": [
+            0.7,
+            0,
+            -0.26
+          ],
+          "color": "red"
+        },
+        {
           "id": "h4",
           "pos": [
+            1.4,
+            0,
+            0.26
+          ],
+          "color": "red",
+          "coveredBy": [
+            "b4",
+            "b6",
+            "b8"
+          ]
+        },
+        {
+          "id": "h5",
+          "pos": [
             -1.4,
+            0,
+            -0.26
+          ],
+          "color": "purple"
+        }
+      ]
+    },
+    {
+      "id": "b3",
+      "prefab": "Board_Single",
+      "position": [
+        2.096320574101992,
+        1,
+        -0.1881290238816291
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "collapseType": "tween",
+      "holes": [
+        {
+          "id": "h1",
+          "pos": [
+            -1.4,
+            0,
+            -0.26
+          ],
+          "color": "red",
+          "coveredBy": [
+            "b8"
+          ]
+        },
+        {
+          "id": "h2",
+          "pos": [
+            0.7,
+            0,
+            -0.26
+          ],
+          "color": "blue"
+        },
+        {
+          "id": "h3",
+          "pos": [
+            1.4,
+            0,
+            0.26
+          ],
+          "color": "red"
+        },
+        {
+          "id": "h4",
+          "pos": [
+            -0.7,
+            0,
+            0.26
+          ],
+          "color": "yellow",
+          "coveredBy": [
+            "b5",
+            "b7",
+            "b8"
+          ]
+        },
+        {
+          "id": "h5",
+          "pos": [
+            0.7,
+            0,
+            0.26
+          ],
+          "color": "green",
+          "coveredBy": [
+            "b5",
+            "b7"
+          ]
+        },
+        {
+          "id": "h6",
+          "pos": [
+            1.4,
+            0,
+            -0.26
+          ],
+          "color": "blue"
+        }
+      ]
+    },
+    {
+      "id": "b4",
+      "prefab": "Board_Single",
+      "position": [
+        -1.836171924532391,
+        2,
+        0.13357381087262182
+      ],
+      "rotation": [
+        0,
+        0,
+        0
+      ],
+      "collapseType": "tween",
+      "holes": [
+        {
+          "id": "h1",
+          "pos": [
+            -0.7,
+            0,
+            -0.26
+          ],
+          "color": "purple",
+          "coveredBy": [
+            "b6"
+          ]
+        },
+        {
+          "id": "h2",
+          "pos": [
+            0,
+            0,
+            0.26
+          ],
+          "color": "red",
+          "coveredBy": [
+            "b6"
+          ]
+        },
+        {
+          "id": "h3",
+          "pos": [
+            0.7,
             0,
             -0.26
           ],
@@ -172,7 +328,7 @@ module.exports = {
           ]
         },
         {
-          "id": "h5",
+          "id": "h4",
           "pos": [
             -1.4,
             0,
@@ -182,158 +338,52 @@ module.exports = {
           "coveredBy": [
             "b6"
           ]
-        }
-      ]
-    },
-    {
-      "id": "b3",
-      "prefab": "Board_Single",
-      "position": [
-        -1.9224365543806925,
-        1,
-        0.09791173373814671
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "collapseType": "tween",
-      "holes": [
-        {
-          "id": "h1",
-          "pos": [
-            -0.7,
-            0,
-            -0.26
-          ],
-          "color": "red",
-          "coveredBy": [
-            "b5",
-            "b7"
-          ]
         },
         {
-          "id": "h2",
+          "id": "h5",
           "pos": [
-            -1.4,
+            0,
             0,
             -0.26
           ],
           "color": "blue",
           "coveredBy": [
-            "b5",
-            "b7"
+            "b6"
           ]
         },
         {
-          "id": "h3",
+          "id": "h6",
           "pos": [
             1.4,
             0,
             0.26
           ],
-          "color": "red",
-          "coveredBy": [
-            "b5",
-            "b7"
-          ]
-        },
-        {
-          "id": "h4",
-          "pos": [
-            0,
-            0,
-            0.26
-          ],
-          "color": "orange",
-          "coveredBy": [
-            "b7"
-          ]
-        }
-      ]
-    },
-    {
-      "id": "b4",
-      "prefab": "Board_Single",
-      "position": [
-        2.1549095403635876,
-        1,
-        -0.2715173731558025
-      ],
-      "rotation": [
-        0,
-        0,
-        0
-      ],
-      "collapseType": "tween",
-      "holes": [
-        {
-          "id": "h1",
-          "pos": [
-            0.7,
-            0,
-            0.26
-          ],
-          "color": "green",
+          "color": "purple",
           "coveredBy": [
             "b6",
             "b8"
           ]
         },
         {
-          "id": "h2",
-          "pos": [
-            -1.4,
-            0,
-            -0.26
-          ],
-          "color": "red",
-          "coveredBy": [
-            "b8"
-          ]
-        },
-        {
-          "id": "h3",
-          "pos": [
-            0,
-            0,
-            -0.26
-          ],
-          "color": "yellow",
-          "coveredBy": [
-            "b8"
-          ]
-        },
-        {
-          "id": "h4",
-          "pos": [
-            1.4,
-            0,
-            0.26
-          ],
-          "color": "red"
-        },
-        {
-          "id": "h5",
+          "id": "h7",
           "pos": [
             -0.7,
             0,
-            -0.26
+            0.26
           ],
-          "color": "orange",
+          "color": "green",
           "coveredBy": [
-            "b8"
+            "b6"
           ]
         },
         {
-          "id": "h6",
+          "id": "h8",
           "pos": [
-            0,
+            0.7,
             0,
             0.26
           ],
-          "color": "yellow",
+          "color": "purple",
           "coveredBy": [
             "b6",
             "b8"
@@ -345,9 +395,9 @@ module.exports = {
       "id": "b5",
       "prefab": "Board_Single",
       "position": [
-        -2.1026556020835416,
+        1.7714107940439134,
         2,
-        0.03707673689350488
+        0.3172546041896567
       ],
       "rotation": [
         0,
@@ -363,7 +413,7 @@ module.exports = {
             0,
             -0.26
           ],
-          "color": "blue",
+          "color": "yellow",
           "coveredBy": [
             "b7"
           ]
@@ -371,13 +421,13 @@ module.exports = {
         {
           "id": "h2",
           "pos": [
-            -0.7,
+            -1.4,
             0,
-            -0.26
+            0.26
           ],
-          "color": "orange",
+          "color": "blue",
           "coveredBy": [
-            "b7"
+            "b8"
           ]
         },
         {
@@ -387,19 +437,44 @@ module.exports = {
             0,
             -0.26
           ],
+          "color": "blue",
+          "coveredBy": [
+            "b7",
+            "b8"
+          ]
+        },
+        {
+          "id": "h4",
+          "pos": [
+            0.7,
+            0,
+            0.26
+          ],
+          "color": "red",
+          "coveredBy": [
+            "b7"
+          ]
+        },
+        {
+          "id": "h5",
+          "pos": [
+            1.4,
+            0,
+            0.26
+          ],
           "color": "green",
           "coveredBy": [
             "b7"
           ]
         },
         {
-          "id": "h4",
+          "id": "h6",
           "pos": [
-            -1.4,
             0,
-            0.26
+            0,
+            -0.26
           ],
-          "color": "green",
+          "color": "yellow",
           "coveredBy": [
             "b7"
           ]
@@ -410,9 +485,9 @@ module.exports = {
       "id": "b6",
       "prefab": "Board_Single",
       "position": [
-        1.7725445767166093,
-        2,
-        0.16830182306002828
+        -1.9920906791696325,
+        3,
+        0.3346840473357588
       ],
       "rotation": [
         0,
@@ -424,37 +499,37 @@ module.exports = {
         {
           "id": "h1",
           "pos": [
+            0,
+            0,
+            -0.26
+          ],
+          "color": "red"
+        },
+        {
+          "id": "h2",
+          "pos": [
             0.7,
             0,
             -0.26
           ],
-          "color": "blue",
+          "color": "purple",
           "coveredBy": [
             "b8"
           ]
         },
         {
-          "id": "h2",
-          "pos": [
-            0,
-            0,
-            0.26
-          ],
-          "color": "yellow"
-        },
-        {
           "id": "h3",
           "pos": [
-            1.4,
+            -0.7,
             0,
-            0.26
+            -0.26
           ],
-          "color": "orange"
+          "color": "purple"
         },
         {
           "id": "h4",
           "pos": [
-            -1.4,
+            -0.7,
             0,
             0.26
           ],
@@ -465,9 +540,27 @@ module.exports = {
           "pos": [
             0,
             0,
-            -0.26
+            0.26
           ],
-          "color": "yellow",
+          "color": "blue"
+        },
+        {
+          "id": "h6",
+          "pos": [
+            -1.4,
+            0,
+            0.26
+          ],
+          "color": "green"
+        },
+        {
+          "id": "h7",
+          "pos": [
+            1.4,
+            0,
+            0.26
+          ],
+          "color": "purple",
           "coveredBy": [
             "b8"
           ]
@@ -478,9 +571,9 @@ module.exports = {
       "id": "b7",
       "prefab": "Board_Single",
       "position": [
-        -2.01002941459883,
+        1.771136601618491,
         3,
-        0.124979856191203
+        0.1694631889462471
       ],
       "rotation": [
         0,
@@ -492,11 +585,14 @@ module.exports = {
         {
           "id": "h1",
           "pos": [
-            0.7,
+            -1.4,
             0,
-            -0.26
+            0.26
           ],
-          "color": "purple"
+          "color": "red",
+          "coveredBy": [
+            "b8"
+          ]
         },
         {
           "id": "h2",
@@ -505,34 +601,46 @@ module.exports = {
             0,
             0.26
           ],
-          "color": "yellow"
+          "color": "purple"
         },
         {
           "id": "h3",
           "pos": [
-            -0.7,
+            0.7,
             0,
             -0.26
           ],
-          "color": "red"
+          "color": "yellow"
         },
         {
           "id": "h4",
           "pos": [
-            1.4,
+            0.7,
             0,
-            -0.26
+            0.26
           ],
-          "color": "red"
+          "color": "blue"
         },
         {
           "id": "h5",
           "pos": [
+            -1.4,
             0,
+            -0.26
+          ],
+          "color": "blue",
+          "coveredBy": [
+            "b8"
+          ]
+        },
+        {
+          "id": "h6",
+          "pos": [
+            -0.7,
             0,
             0.26
           ],
-          "color": "orange"
+          "color": "green"
         }
       ]
     },
@@ -540,9 +648,9 @@ module.exports = {
       "id": "b8",
       "prefab": "Board_Single",
       "position": [
-        1.781617901683785,
-        3,
-        -0.2067200487013906
+        -0.010699675185605884,
+        4,
+        0.06453343841712922
       ],
       "rotation": [
         0,
@@ -563,41 +671,59 @@ module.exports = {
         {
           "id": "h2",
           "pos": [
-            0,
+            0.7,
             0,
             -0.26
           ],
-          "color": "purple"
+          "color": "red"
         },
         {
           "id": "h3",
           "pos": [
             1.4,
             0,
-            0.26
+            -0.26
           ],
           "color": "yellow"
         },
         {
           "id": "h4",
           "pos": [
+            -1.4,
             0,
-            0,
-            0.26
+            -0.26
           ],
-          "color": "purple"
+          "color": "blue"
         },
         {
           "id": "h5",
           "pos": [
-            -0.7,
+            -1.4,
             0,
             0.26
           ],
-          "color": "orange"
+          "color": "yellow"
+        },
+        {
+          "id": "h6",
+          "pos": [
+            -0.7,
+            0,
+            -0.26
+          ],
+          "color": "purple"
+        },
+        {
+          "id": "h7",
+          "pos": [
+            0,
+            0,
+            0.26
+          ],
+          "color": "red"
         }
       ]
     }
   ],
-  "seed": 28260
+  "seed": 2604546
 };

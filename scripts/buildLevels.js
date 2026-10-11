@@ -6,7 +6,7 @@ const gen = require('../js/levels/generator');
 const val = require('../js/levels/validator');
 
 const TOTAL = 30;
-const SEED_BUDGET = 6000;
+const SEED_BUDGET = 60000;
 const outDir = path.join(__dirname, '..', 'js', 'levels', 'levelData');
 
 if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
@@ -18,7 +18,9 @@ function pad3(n) {
 let failures = 0;
 for (let id = 1; id <= TOTAL; id++) {
   let chosen = null;
-  for (let seed = id * 1000; seed < id * 1000 + SEED_BUDGET; seed++) {
+  let chosenRes = null;
+  for (let k = 0; k < SEED_BUDGET; k++) {
+    const seed = id * 100000 + k;
     const lvl = gen.generateLevel(id, seed);
     const res = val.validate(lvl, { runs: 100, seed: id * 31 + seed });
     if (res.ok) {
@@ -26,6 +28,7 @@ for (let id = 1; id <= TOTAL; id++) {
       lvl.seed = seed;
       lvl.name = stageName(id) + ' ' + id;
       chosen = lvl;
+      chosenRes = res;
       break;
     }
   }
@@ -37,11 +40,12 @@ for (let id = 1; id <= TOTAL; id++) {
   const file = path.join(outDir, 'level_' + pad3(id) + '.js');
   const body = "'use strict';\n\nmodule.exports = " + JSON.stringify(chosen, null, 2) + ';\n';
   fs.writeFileSync(file, body);
-  console.log('level ' + id + ': seed=' + chosen.seed +
-    ' screws=' + val.totalScrews(chosen) +
-    ' colors=' + chosen.colors.length +
-    ' boards=' + chosen.boards.length +
-    ' slots=' + chosen.slotCount);
+    console.log('level ' + id + ': seed=' + chosen.seed +
+      ' screws=' + val.totalScrews(chosen) +
+      ' colors=' + chosen.colors.length +
+      ' boards=' + chosen.boards.length +
+      ' slots=' + chosen.slotCount +
+      ' tight=' + (chosenRes.tightRate != null ? chosenRes.tightRate.toFixed(2) : '-'));
 }
 
 function stageName(id) {

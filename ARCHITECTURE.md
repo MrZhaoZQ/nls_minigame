@@ -44,7 +44,7 @@ minigame/
 │  │  ├─ index.js             # id → 关卡数据 映射
 │  │  ├─ LevelLoader.js       # 数据 → 场景树（板→孔位→螺丝）+ coveredBy 建表 + 取景计算
 │  │  ├─ generator.js         # 关卡生成器（分阶段难度、seed 可复现）
-│  │  └─ validator.js         # 校验器：静态规则 + 贪心可解性模拟 + 自动 +1 槽
+│  │  └─ validator.js          # 校验器：静态规则 + 贪心可解性模拟 + 自动 +1 槽 + 紧度闸门（6 关起 slot-1 死局率 ≥0.3）
 │  ├─ core/
 │  │  ├─ EventBus.js          # 事件总线 + Events 常量表
 │  │  ├─ GameManager.js       # 对局状态机/胜负/关卡流转/撤销/提示/清槽
@@ -215,7 +215,7 @@ node scripts/headlessPlaythrough.js  # 30 关无头打通（贪心玩家）
 | tween.test | 补间/延迟/链式/停止/Easing |
 | gameManager.test | 收集/三消/胜负/输入锁/拾取/遮挡/坍塌钩子 |
 | collapse.test | 坍塌串行/解锁/撤销(快照/配额/忙碌/败局恢复/清栈) |
-| levels.test | **30 关逐个过校验器**、生成器倍数、校验器反例 |
+| levels.test | **30 关逐个过校验器（含紧度断言）**、生成器倍数、校验器反例、宽松关被紧度闸门拒出厂 |
 | bootstrap.test | 无头端到端：bootstrap→模拟点击通关→面板进下一关；金币购买撤销/提示走弹窗确认（含取消分支） |
 | ad.test | mock 发奖/无冷启动限制/冷却/每关限次/日限/真广告 isEnded + InterstitialManager 闸门链（mock 无操作/前3关/胜利间隔/冷却/日限/激励互斥） |
 | share.test | 分享发奖/取消不发/冷却/单关限次/标题模板 |

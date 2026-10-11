@@ -17,8 +17,12 @@ test('all 30 level files exist', () => {
 test('all 30 levels pass validator', function () {
   for (let id = 1; id <= 30; id++) {
     const lvl = Levels[id];
-    const res = validator.validate(lvl, { runs: 60, seed: id * 7 + 1 });
+    const res = validator.validate(lvl, { runs: 100, seed: id * 7 + 1 });
     assert(res.ok, 'level ' + id + ': ' + res.errors.join('; '));
+    if (id >= 6) {
+      assert(typeof res.tightRate === 'number' && res.tightRate >= 0.3,
+        'level ' + id + ' must ship with real slot pressure, tight=' + res.tightRate);
+    }
   }
 });
 
@@ -122,4 +126,29 @@ test('simulate detects slot deadlock', () => {
   };
   const sim = validator.simulate(lvl, 30, 2);
   assertEq(sim.deathRate, 1);
+});
+
+test('loose level rejected by tightness gate', () => {
+  const loose = {
+    id: 6, name: 'loose', colors: ['red', 'blue', 'green'], slotCount: 5, gridSize: 5,
+    boards: [{
+      id: 'b1', prefab: 'Board_Single', position: [0, 0, 0], rotation: [0, 0, 0],
+      holes: [
+        { id: 'h1', pos: [-1.4, 0, -0.26], color: 'red' },
+        { id: 'h2', pos: [-0.7, 0, 0.26], color: 'red' },
+        { id: 'h3', pos: [0, 0, -0.26], color: 'red' },
+        { id: 'h4', pos: [0.7, 0, 0.26], color: 'blue' },
+        { id: 'h5', pos: [1.4, 0, -0.26], color: 'blue' },
+        { id: 'h6', pos: [1.4, 0, 0.26], color: 'blue' },
+        { id: 'h7', pos: [-1.4, 0, 0.26], color: 'green' },
+        { id: 'h8', pos: [-0.7, 0, -0.26], color: 'green' },
+        { id: 'h9', pos: [0, 0, 0.26], color: 'green' }
+      ]
+    }]
+  };
+  const res = validator.validate(loose, { runs: 40 });
+  assertEq(res.ok, false, 'single flat board has no slot pressure');
+  assert(res.errors.some(e => e.indexOf('loose') === 0), res.errors.join('; '));
+  const exempt = validator.validate(loose, { runs: 40, tightFrom: 99 });
+  assertEq(exempt.ok, true, 'tightFrom override skips the gate');
 });

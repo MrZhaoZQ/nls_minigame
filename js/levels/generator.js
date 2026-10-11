@@ -11,20 +11,22 @@ function mulberry32(seed) {
 }
 
 const STAGES = [
-  { max: 5,  layers: 1, boards: [1, 2], colors: [2, 3], screws: [6, 12], cover: 0 },
-  { max: 15, layers: [2, 3], boards: [3, 6], colors: [4, 4], screws: [15, 30], cover: 0.5 },
-  { max: 25, layers: [3, 4], boards: [6, 10], colors: [5, 5], screws: [25, 40], cover: 0.8 },
-  { max: 999, layers: [4, 5], boards: [8, 12], colors: [5, 6], screws: [36, 50], cover: 0.85 }
+  { max: 5,  layers: [1, 2], boards: [2, 3], colors: [3, 3], screws: [9, 15], cover: 0.15 },
+  { max: 10, layers: [2, 3], boards: [4, 6], colors: [4, 4], screws: [24, 30], cover: 0.75 },
+  { max: 15, layers: [3, 3], boards: [5, 7], colors: [4, 5], screws: [27, 34], cover: 0.8 },
+  { max: 20, layers: [3, 4], boards: [6, 9], colors: [5, 5], screws: [30, 38], cover: 0.9 },
+  { max: 25, layers: [4, 4], boards: [7, 10], colors: [5, 5], screws: [34, 44], cover: 0.92 },
+  { max: 999, layers: [4, 5], boards: [8, 12], colors: [5, 6], screws: [42, 54], cover: 0.85 }
 ];
 
 const COLOR_NAMES = ['red', 'blue', 'yellow', 'green', 'purple', 'orange'];
 
 const EARLY = {
   1: { layers: [1, 1], boards: [1, 2], colors: [3, 3], screws: [9, 9], cover: 0 },
-  2: { layers: [1, 1], boards: [2, 2], colors: [3, 3], screws: [9, 12], cover: 0 },
-  3: { layers: [2, 2], boards: [2, 3], colors: [3, 3], screws: [12, 12], cover: 0.3 },
-  4: { layers: [2, 2], boards: [3, 4], colors: [4, 4], screws: [12, 15], cover: 0.4 },
-  5: { layers: [2, 2], boards: [3, 4], colors: [4, 4], screws: [15, 18], cover: 0.5 }
+  2: { layers: [2, 2], boards: [2, 3], colors: [3, 3], screws: [12, 12], cover: 0.3 },
+  3: { layers: [2, 2], boards: [3, 3], colors: [4, 4], screws: [15, 15], cover: 0.4 },
+  4: { layers: [2, 3], boards: [3, 4], colors: [4, 4], screws: [18, 18], cover: 0.5 },
+  5: { layers: [3, 3], boards: [4, 4], colors: [4, 4], screws: [21, 21], cover: 0.6 }
 };
 
 function stageOf(levelId) {
