@@ -29,14 +29,6 @@ test('recordResult keeps best stars and best time', () => {
   Platform.inject(null);
 });
 
-test('capacity expand limited once per day', () => {
-  Platform.inject(Platform.createMockPlatform());
-  assert(SaveManager.canExpandCapacityToday());
-  SaveManager.recordCapacityExpand();
-  assertEq(SaveManager.canExpandCapacityToday(), false);
-  Platform.inject(null);
-});
-
 section('Tutorial');
 
 test('steps advance drag -> collect -> confirm', () => {
@@ -62,18 +54,33 @@ section('LevelSelect');
 
 test('locked levels rejected, unlocked returned', () => {
   const ls = new LevelSelect(375, 667, { bottom: 58 });
-  ls.show({ levels: [1, 2, 3, 4, 5], unlocked: 2, results: {}, capacity: 5, canExpand: true });
+  ls.show({ levels: [1, 2, 3, 4, 5], unlocked: 2, results: {}, capacity: 5 });
   const c1 = ls.cells[0];
   const c3 = ls.cells[2];
   assertEq(ls.hitTest(c1.x + 5, c1.y + 5), { type: 'level', id: 1 });
   assertEq(ls.hitTest(c3.x + 5, c3.y + 5), { type: 'locked' });
-  const e = ls.expandBtn;
-  assertEq(ls.hitTest(e.x + 10, e.y + 10), { type: 'expand' });
 });
 
 test('hidden panel ignores hits', () => {
   const ls = new LevelSelect(375, 667, { bottom: 58 });
   assertEq(ls.hitTest(20, 200), null);
+});
+
+test('grid stays clear of the bottom banner reserve', () => {
+  const ls = new LevelSelect(375, 667, { bottom: 58 });
+  const list = [];
+  for (let i = 1; i <= 30; i++) list.push(i);
+  ls.show({ levels: list, unlocked: 30, results: {}, capacity: 5, bottomReserve: 144 });
+  assertEq(ls.viewBottom, 667 - 144);
+  assertEq(ls.hitTest(187, 667 - 70), null, 'banner zone is not hittable');
+  ls.onDrag(-5000);
+  ls._layout();
+  for (let i = 0; i < ls.cells.length; i++) {
+    const cy = ls.cells[i].y + ls.cells[i].h / 2;
+    if (cy > ls.viewTop - 4) {
+      assert(cy <= ls.viewBottom + 4, 'visible cell centers stay above the reserve');
+    }
+  }
 });
 
 section('PausePanel');

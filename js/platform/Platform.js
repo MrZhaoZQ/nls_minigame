@@ -113,7 +113,8 @@ const Platform = {
   createInterstitialAd(adUnitId) {
     if (_mock && _mock.createInterstitialAd) return _mock.createInterstitialAd(adUnitId);
     if (hasWx() && adUnitId && wx.createInterstitialAd) {
-      return wx.createInterstitialAd({ adUnitId });
+      try { return wx.createInterstitialAd({ adUnitId }); }
+      catch (e) { return null; }
     }
     return null;
   },
@@ -121,7 +122,17 @@ const Platform = {
   createRewardedVideoAd(adUnitId) {
     if (_mock && _mock.createRewardedVideoAd) return _mock.createRewardedVideoAd(adUnitId);
     if (hasWx() && adUnitId && wx.createRewardedVideoAd) {
-      return wx.createRewardedVideoAd({ adUnitId });
+      try { return wx.createRewardedVideoAd({ adUnitId }); }
+      catch (e) { return null; }
+    }
+    return null;
+  },
+
+  createCustomAd(opts) {
+    if (_mock && _mock.createCustomAd) return _mock.createCustomAd(opts);
+    if (hasWx() && wx.createCustomAd) {
+      try { return wx.createCustomAd(opts); }
+      catch (e) { return null; }
     }
     return null;
   },
@@ -321,6 +332,7 @@ function createMockPlatform(overrides) {
       return { src: '', play() {}, stop() {}, destroy() {}, volume: 0 };
     },
     createRewardedVideoAd() { return null; },
+    createCustomAd() { return null; },
     createInterstitialAd() { return null; },
     vibrateShort() { mock.vibrations++; },
     reportEvent(name, params) { mock.reports.push({ name, params }); },

@@ -9,7 +9,6 @@ const KEYS = {
   shareCount: 'screwmaster_sharecount',
   tutorial: 'screwmaster_tutorial',
   results: 'screwmaster_results',
-  capacityDay: 'screwmaster_capacityday',
   coins: 'screwmaster_coins',
   interCount: 'screwmaster_intercount'
 };
@@ -38,12 +37,6 @@ const SaveManager = {
   getExtraCapacity() {
     const raw = Platform.storage.get(KEYS.capacity);
     return raw ? parseInt(raw, 10) || 0 : 0;
-  },
-
-  addExtraCapacity() {
-    const cur = SaveManager.getExtraCapacity();
-    Platform.storage.set(KEYS.capacity, String(cur + 1));
-    return cur + 1;
   },
 
   getDailyAdInfo() {
@@ -155,29 +148,6 @@ const SaveManager = {
     }
     Platform.storage.set(KEYS.results, JSON.stringify(all));
     return all[levelId];
-  },
-
-  getCapacityDayInfo() {
-    const raw = Platform.storage.get(KEYS.capacityDay);
-    try {
-      const data = raw ? JSON.parse(raw) : null;
-      const today = new Date(Platform.now()).toDateString();
-      if (data && data.date === today) return data;
-      return { date: today, used: 0 };
-    } catch (e) {
-      return { date: new Date(Platform.now()).toDateString(), used: 0 };
-    }
-  },
-
-  canExpandCapacityToday() {
-    return SaveManager.getCapacityDayInfo().used < 1;
-  },
-
-  recordCapacityExpand() {
-    const info = SaveManager.getCapacityDayInfo();
-    info.used++;
-    Platform.storage.set(KEYS.capacityDay, JSON.stringify(info));
-    return info;
   }
 };
 

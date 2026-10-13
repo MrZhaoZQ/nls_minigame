@@ -49,7 +49,7 @@ python3 scripts/make_audio.py
 │  ├─ gameplay/               # 纯逻辑：螺丝状态机 / 槽位三消 / 坍塌队列 / 撤销栈 / MatchChecker
 │  ├─ levels/                 # LevelLoader / generator / validator / levelData(30 关)
 │  ├─ core/                   # GameManager / EventBus / TweenManager / SaveManager
-│  ├─ ad/  share/             # AdManager（激励视频+频控）/ ShareManager（转发奖励+频控）
+│  ├─ ad/  share/             # AdManager（激励视频）/ InterstitialManager（插屏）/ TemplateAdManager（原生模板横幅）/ ShareManager（转发奖励，回退）
 │  ├─ audio/                  # AudioManager（首触点解锁、静默降级）
 │  └─ ui/                     # 选关/暂停/帮助/结算/失败/槽位/顶栏/Toast/提示标记/粒子
 ├─ scripts/                   # buildLevels / headlessPlaythrough / make_audio
@@ -67,11 +67,11 @@ python3 scripts/make_audio.py
 | 坍塌 | 动画串行队列（警示→坠落→淡出），禁用物理引擎 |
 | 关卡 | 生成器分阶段（新手/成长/挑战/大师）；校验器四重标准（3 随机种子贪心 + 确定性贪心，死局率 0） |
 | 新手引导 | 第 1 关首玩三步（旋转→点发光螺丝→规则），完成态存档 |
-| 选关 | 网格+滚动+星级+回玩；扩容入口（邀好友每日 1 次，上限 8 槽） |
+| 选关 | 网格+滚动+星级+回玩；底部为常驻横幅广告位（扩容入口已下线，老玩家扩容值仍生效） |
 | 金币经济 | 通关产出；消耗：提示 30 / 撤销 20 / 失败救援 50（二次点击确认防误扣） |
 | 分享 | 胶囊转发+朋友圈（审核图 `imageUrl`+`imageUrlId`）；奖励分享四出口；冷/热启动 query 回流 |
-| 广告 | `GameConfig.ad.mode`：`'share'`（当前）⇄ `'ad'`（开通流量主后切换）；频控齐全 |
-| 存档 | 进度/星级/金币/扩容/引导态，wx storage |
+| 广告 | `GameConfig.ad.mode`：`'ad'`（当前，流量主已开通）⇄ `'share'`（回退）；激励 5 位 + 插屏（仅结算「下一关」转场）+ 原生模板横幅（选关页常驻/结算/暂停）；频控齐全 |
+| 存档 | 进度/星级/金币/引导态，wx storage |
 | 兼容 | 胶囊避让布局、safeArea、窗口 resize、降帧保护、震动/音频兜底 |
 
 ---

@@ -27,6 +27,7 @@ const LevelSelect = require('./ui/LevelSelect');
 const PausePanel = require('./ui/PausePanel');
 const AdManager = require('./ad/AdManager');
 const InterstitialManager = require('./ad/InterstitialManager');
+const TemplateAdManager = require('./ad/TemplateAdManager');
 const ShareManager = require('./share/ShareManager');
 const AudioManager = require('./audio/AudioManager');
 const ParticleFX = require('./ui/ParticleFX');
@@ -130,19 +131,35 @@ function bootstrap() {
 
   const adMgr = new AdManager();
   adMgr.init();
-  const interMgr = new InterstitialManager({ adMgr: adMgr });
+  const interMgr = new InterstitialManager();
   interMgr.init();
+  const templateAds = {};
+  const templateKeys = Object.keys(GameConfig.ad.templateUnitIds);
+  for (let i = 0; i < templateKeys.length; i++) {
+    templateAds[templateKeys[i]] = new TemplateAdManager({
+      unitId: GameConfig.ad.templateUnitIds[templateKeys[i]],
+      screen: { width: info.width, height: info.height },
+      bottomInset: info.safeArea ? Math.max(0, info.height - info.safeArea.bottom) : 0
+    });
+  }
+  function setTemplateSurface(surface) {
+    let changed = false;
+    for (let i = 0; i < templateKeys.length; i++) {
+      if (templateAds[templateKeys[i]].setActive(templateKeys[i] === surface)) changed = true;
+    }
+    if (changed) app.forceRender = true;
+  }
   const shareMgr = new ShareManager();
   const rewardMode = GameConfig.ad.mode === 'ad' ? 'ad' : 'share';
   const rewardProvider = rewardMode === 'ad' ? adMgr : shareMgr;
   const rewardWord = rewardMode === 'ad' ? '看视频' : '邀好友';
   app.adMgr = adMgr;
   app.interMgr = interMgr;
+  app.templateAds = templateAds;
   app.shareMgr = shareMgr;
   app.rewardProvider = rewardProvider;
 
   const topBar = new TopBar(app.bus, info.width, info.height, capsuleRect);
-  syncCoins();
   const helpPanel = new HelpPanel(info.width, info.height, capsuleRect, { rewardWord });
   const hintMarker = new HintMarker();
   const resultPanel = new ResultPanel(info.width, info.height);
@@ -196,6 +213,7 @@ function bootstrap() {
     if (!res || res.rewarded) return;
     const map = {
       cooldown: '操作太频繁，稍后再试',
+      busy: '上一个广告未结束，稍后再试',
       dailyLimit: '今日次数已用完',
       perLevel: '本关次数已用完',
       cancel: '已取消',
@@ -212,11 +230,6 @@ function bootstrap() {
     topBar.hintEnabled = false;
     renderer.highlightScrewId = screw.node.id;
     hintMarker.setTarget(screw);
-  }
-
-  function syncCoins() {
-    app.coins = SaveManager.getCoins();
-    topBar.undoCoinAffordable = app.coins >= GameConfig.economy.undoCost;
   }
 
   function isFrozen() {
@@ -249,7 +262,8 @@ function bootstrap() {
       results: SaveManager.getResults(),
       capacity: slotManager.capacity,
       coins: SaveManager.getCoins(),
-      canExpand: SaveManager.canExpandCapacityToday()
+      bottomReserve: app.bottomInset + templateAds.levelSelect.estimatedHeight() +
+        GameConfig.ad.templateMargin + 10
     });
   }
 
@@ -290,7 +304,6 @@ function bootstrap() {
 
   app.startLevelById = startLevelById;
   app.showMenu = showMenu;
-  app.syncCoins = syncCoins;
   app.allCleared = false;
 
   Platform.onShareAppMessage(() => ({
@@ -365,6 +378,7 @@ function bootstrap() {
       resultPanel.setPressed(winHit);
       if (winHit === 'next') {
         resultPanel.hide();
+        setTemplateSurface(null);
         interMgr.maybeShow(app.currentLevelId);
         startLevelById(app.currentLevelId + 1);
       } else if (winHit === 'double' && !resultPanel.doubled) {
@@ -428,7 +442,6 @@ function bootstrap() {
           return;
         }
         SaveManager.spendCoins(GameConfig.economy.rescueCost);
-        syncCoins();
         app.levelStats.rescues++;
         failPanel.hide();
         topBar.setUndoQuota(game.freeUndoLeft + game.adUndoLeft);
@@ -461,24 +474,7 @@ function bootstrap() {
       const lsHit = levelSelect.hitTest(x, y);
       if (lsHit) levelSelect.setPressed(lsHit.type === 'level' ? 'l' + lsHit.id : lsHit.type);
       if (lsHit && lsHit.type === 'level') startLevelById(lsHit.id);
-      else if (lsHit && lsHit.type === 'expand') {
-        if (slotManager.capacity >= GameConfig.slot.maxCount) {
-          toast.show('槽位已满级');
-          return;
-        }
-        if (!SaveManager.canExpandCapacityToday()) {
-          toast.show('今日扩容已用过');
-          return;
-        }
-        rewardProvider.show('capacity', (res) => {
-          if (!res.rewarded) { rewardFailToast(res); return; }
-          SaveManager.addExtraCapacity();
-          SaveManager.recordCapacityExpand();
-          game.setExtraCapacity(SaveManager.getExtraCapacity());
-          toast.show('暂存槽永久 +1！');
-          showMenu();
-        });
-      } else if (lsHit && lsHit.type === 'locked') {
+      else if (lsHit && lsHit.type === 'locked') {
         toast.show('通关前面的关卡才可解锁哦');
       }
       return;
@@ -518,7 +514,6 @@ function bootstrap() {
               return;
             }
             SaveManager.spendCoins(eco.undoCost);
-            syncCoins();
             app.levelStats.undos++;
             toast.show('已消耗 ' + eco.undoCost + ' 金币');
             topBar.setUndoQuota(game.freeUndoLeft + game.adUndoLeft);
@@ -526,7 +521,19 @@ function bootstrap() {
           }
         });
       } else {
-        toast.show('撤销次数用完，金币不足');
+        rewardProvider.show('undo', (res) => {
+          if (!res.rewarded) { rewardFailToast(res); return; }
+          game.adUndoLeft += 1;
+          const r = game.undo();
+          if (!r.ok) {
+            game.adUndoLeft -= 1;
+            app.bus.emit('UNDO_DENIED', { reason: r.reason });
+            return;
+          }
+          app.levelStats.undos++;
+          topBar.setUndoQuota(game.freeUndoLeft + game.adUndoLeft);
+          topBar.setRemaining(game.totalRemainingOnBoards());
+        });
       }
       return;
     }
@@ -556,8 +563,7 @@ function bootstrap() {
           cancelText: '取消',
           success: (res) => {
             if (!res.confirm || game.hintUsed || !game.requestHint()) return;
-            if (!SaveManager.spendCoins(eco.hintCost)) { syncCoins(); return; }
-            syncCoins();
+            if (!SaveManager.spendCoins(eco.hintCost)) return;
             doHint();
             toast.show('已消耗 ' + eco.hintCost + ' 金币');
           }
@@ -605,7 +611,6 @@ function bootstrap() {
     const base = game.collectedCount * 10;
     app.lastWinCoins = base;
     const balance = SaveManager.addCoins(base);
-    syncCoins();
     resultPanel.doubleOffered = rewardProvider.canShow('win_double').ok;
     resultPanel.show(base, { stars, costMs, moves, balance });
     particles.confetti(app.screen.width / 2, app.screen.height * 0.3, 36);
@@ -654,6 +659,7 @@ function bootstrap() {
   });
   app.bus.on('UNDO_DONE', () => {
     app.lastProgressAt = Platform.now();
+    if (failPanel.visible) failPanel.hide();
   });
   app.bus.on('UNDO_DENIED', (d) => {
     toast.show(UNDO_DENIED_TEXT[d && d.reason] || '暂不可撤销');
@@ -707,6 +713,9 @@ function bootstrap() {
     app.capsule = capsuleRect;
     app.bottomInset = info2.safeArea
       ? Math.max(0, info2.height - info2.safeArea.bottom) : 0;
+    for (let i = 0; i < templateKeys.length; i++) {
+      templateAds[templateKeys[i]].layout(app.screen, app.bottomInset);
+    }
     slotUI.resize(info2.width, info2.height, app.bottomInset);
     topBar.resize(info2.width, info2.height, capsuleRect);
     resultPanel.resize(info2.width, info2.height);
@@ -756,6 +765,13 @@ function bootstrap() {
     helpPanel.update(dt);
     toast.update(dt);
     syncClubEntry();
+    let templateSurface = null;
+    if (!app.pausedReturn) {
+      if (levelSelect.visible) templateSurface = 'levelSelect';
+      else if (pausePanel.visible) templateSurface = 'pause';
+      else if (resultPanel.visible) templateSurface = 'result';
+    }
+    setTemplateSurface(templateSurface);
     if (game.state === 'win') app.winBannerTime += dt;
 
     topBar.hintEnabled = !game.hintUsed;

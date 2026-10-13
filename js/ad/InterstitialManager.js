@@ -9,9 +9,8 @@ class InterstitialManager {
     const o = opts || {};
     this.unitId = o.unitId != null ? o.unitId : GameConfig.ad.interUnitId;
     this.now = o.now || (() => Platform.now());
-    this.adMgr = o.adMgr || null;
     this.ad = null;
-    this.lastShowTs = 0;
+    this.lastShowTs = SaveManager.getDailyInterInfo().lastShowTs || 0;
     this.winsSinceShow = 0;
     this.shownCount = 0;
     this.events = [];
@@ -50,10 +49,6 @@ class InterstitialManager {
     if (SaveManager.getDailyInterInfo().count >= cfg.interDailyLimit) {
       return { ok: false, reason: 'dailyLimit' };
     }
-    if (this.adMgr && this.adMgr.lastGrantTs &&
-        now - this.adMgr.lastGrantTs < cfg.interAfterRewardedMs) {
-      return { ok: false, reason: 'afterRewarded' };
-    }
     return { ok: true };
   }
 
@@ -61,24 +56,38 @@ class InterstitialManager {
     const gate = this.canShow(levelId);
     this.events.push({ type: 'request', ok: gate.ok, reason: gate.reason || null });
     if (!gate.ok) return gate;
-    this.lastShowTs = this.now();
+    const self = this;
+    const ts = this.now();
+    try {
+      const p = this.ad.show();
+      if (p && typeof p.then === 'function') {
+        p.then(
+          () => self._commit(ts),
+          () => self._onShowFail()
+        );
+      } else {
+        this._commit(ts);
+      }
+    } catch (e) {
+      this.events.push({ type: 'showFail' });
+    }
+    return gate;
+  }
+
+  _onShowFail() {
+    this.events.push({ type: 'showFail' });
+    try {
+      const lp = this.ad.load && this.ad.load();
+      if (lp && typeof lp.catch === 'function') lp.catch(() => {});
+    } catch (e) {}
+  }
+
+  _commit(shownAt) {
+    this.lastShowTs = shownAt;
     this.winsSinceShow = 0;
     this.shownCount++;
     SaveManager.recordInterShow();
-    const self = this;
-    try {
-      const p = this.ad.show();
-      if (p && p.catch) {
-        p.catch(() => {
-          if (self.ad.load) {
-            self.ad.load().then(() => self.ad.show()).catch(() => {});
-          }
-        });
-      }
-    } catch (e) {
-      this.events.push({ type: 'error' });
-    }
-    return gate;
+    this.events.push({ type: 'shown' });
   }
 }
 

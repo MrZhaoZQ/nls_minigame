@@ -15,7 +15,6 @@ class AdManager {
     this.lastShowTs = this.daily.lastShowTs || 0;
     this.levelId = 1;
     this.levelShows = {};
-    this.onErrorCount = 0;
     this.lastGrantTs = 0;
     this.events = [];
   }
@@ -60,6 +59,10 @@ class AdManager {
       if (cb) cb({ rewarded: false, reason: gate.reason });
       return;
     }
+    if (this.pending) {
+      if (cb) cb({ rewarded: false, reason: 'busy' });
+      return;
+    }
 
     if (this.isMock()) {
       this._grant(placement);
@@ -98,7 +101,6 @@ class AdManager {
   }
 
   _onError(err) {
-    this.onErrorCount++;
     const p = this.pending;
     this.pending = null;
     if (p && p.cb) p.cb({ rewarded: false, reason: 'error' });

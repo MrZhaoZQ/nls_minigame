@@ -12,9 +12,8 @@ class LevelSelect {
     this.unlocked = 1;
     this.results = {};
     this.capacity = 5;
-    this.canExpand = false;
+    this.bottomReserve = 104;
     this.cells = [];
-    this.expandBtn = null;
     this.scroll = 0;
     this.maxScroll = 0;
     this.viewTop = 0;
@@ -42,7 +41,7 @@ class LevelSelect {
     this.results = opts.results || {};
     this.capacity = opts.capacity;
     this.coins = opts.coins || 0;
-    this.canExpand = !!opts.canExpand;
+    this.bottomReserve = opts.bottomReserve || 104;
     this.scroll = 0;
     this.rev++;
     this._layout();
@@ -72,7 +71,7 @@ class LevelSelect {
     const cell = (this.w - margin * 2 - gap * (cols - 1)) / cols;
     const pitch = cell + gap + 10;
     this.viewTop = this.capsule.bottom + 70;
-    this.viewBottom = this.h - 104;
+    this.viewBottom = this.h - this.bottomReserve;
     this.cells = [];
     for (let i = 0; i < this.levels.length; i++) {
       const id = this.levels[i];
@@ -89,13 +88,6 @@ class LevelSelect {
     const rows = Math.ceil(this.levels.length / cols);
     const contentBottom = this.viewTop + (rows - 1) * pitch + cell;
     this.maxScroll = Math.max(0, contentBottom - this.viewBottom);
-    const bw = 240;
-    this.expandBtn = {
-      x: this.w / 2 - bw / 2,
-      y: this.h - 92,
-      w: bw,
-      h: 46
-    };
   }
 
   hitTest(x, y) {
@@ -109,10 +101,6 @@ class LevelSelect {
         if (c.id <= this.unlocked) return { type: 'level', id: c.id };
         return { type: 'locked' };
       }
-    }
-    const e = this.expandBtn;
-    if (x >= e.x && x <= e.x + e.w && y >= e.y && y <= e.y + e.h) {
-      return { type: 'expand' };
     }
     return null;
   }
@@ -205,19 +193,6 @@ class LevelSelect {
       UISystem.roundRect(ctx, w - 7, ty, 4, thumbH, 2);
       ctx.fill();
     }
-
-    const e = this.expandBtn;
-    const enabled = this.canExpand && this.capacity < 8;
-    const epr = this.pressedId === 'expand' ? 3 : 0;
-    UISystem.roundRect(ctx, e.x + epr, e.y + epr, e.w - epr * 2, e.h - epr * 2, 23);
-    ctx.fillStyle = enabled ? '#f39c12' : 'rgba(150,150,150,0.5)';
-    ctx.fill();
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 14px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(enabled
-      ? '邀好友 暂存槽永久+1'
-      : (this.capacity >= 8 ? '槽位已满级' : '明日可再扩容'), e.x + e.w / 2, e.y + 29);
 
     ctx.restore();
   }

@@ -116,11 +116,22 @@ section('InterstitialManager');
 
 const InterstitialManager = require('../js/ad/InterstitialManager');
 
-function fakeInterAd() {
+function fakeInterAd(mode) {
   return {
     shown: 0,
-    show() { this.shown++; return { catch: () => ({ then: () => {} }) }; },
-    load() { return { then: () => ({ catch: () => {} }) }; },
+    loadCalls: 0,
+    show() {
+      this.shown++;
+      if (mode === 'fail') return { then: (ok, err) => { if (err) err(new Error('no fill')); } };
+      return { then: (ok) => { if (ok) ok(); } };
+    },
+    load() {
+      this.loadCalls++;
+      return {
+        then: (ok) => { if (ok) ok(); return { catch: () => ({ then: () => {} }) }; },
+        catch: () => ({})
+      };
+    },
     onError() {}
   };
 }
@@ -128,11 +139,12 @@ function fakeInterAd() {
 function setupInter(opts) {
   const o = opts || {};
   const mock = Platform.createMockPlatform({
-    createInterstitialAd: () => (o.noAd ? null : fakeInterAd())
+    createInterstitialAd: () => (o.noAd ? null : fakeInterAd(o.interMode)),
+    now: () => clock
   });
   Platform.inject(mock);
   let clock = 0;
-  const im = new InterstitialManager({ now: () => clock, adMgr: o.adMgr || null });
+  const im = new InterstitialManager({ now: () => clock });
   im.init();
   return { im, setClock: (v) => { clock = v; } };
 }
@@ -148,35 +160,232 @@ test('interstitial no-op without platform ad', () => {
 test('interstitial gating chain', () => {
   const { im, setClock } = setupInter();
   setClock(91000);
-  assertEq(im.canShow(3).reason, 'protected');
-  assertEq(im.canShow(4).reason, 'winGap');
-  im.noteWin(); im.noteWin(); im.noteWin();
-  assertEq(im.canShow(4).ok, true);
-  im.maybeShow(4);
+  assertEq(im.canShow(1).reason, 'protected');
+  assertEq(im.canShow(2).reason, 'winGap');
+  im.noteWin(); im.noteWin();
+  assertEq(im.canShow(2).ok, true, 'two wins satisfy the gap');
+  im.maybeShow(2);
   assertEq(im.ad.shown, 1);
   assertEq(im.winsSinceShow, 0);
   assertEq(im.shownCount, 1);
-  im.noteWin(); im.noteWin(); im.noteWin();
-  assertEq(im.canShow(4).reason, 'cooldown');
-  setClock(91000 + GameConfig.ad.interCooldownMs + 20);
-  assertEq(im.canShow(4).ok, true);
+  im.noteWin(); im.noteWin();
+  assertEq(im.canShow(2).reason, 'cooldown');
+  const t2 = 91000 + GameConfig.ad.interCooldownMs + 20;
+  setClock(t2);
+  assertEq(im.canShow(2).ok, true);
   Platform.storage.set('screwmaster_intercount', JSON.stringify({
-    date: new Date(Date.now()).toDateString(),
+    date: new Date(t2).toDateString(),
     count: GameConfig.ad.interDailyLimit,
     lastShowTs: 0
   }));
-  assertEq(im.canShow(4).reason, 'dailyLimit');
+  assertEq(im.canShow(2).reason, 'dailyLimit');
   Platform.inject(null);
 });
 
-test('interstitial suppressed right after rewarded grant', () => {
-  const adMgr = { lastGrantTs: 0 };
-  const { im, setClock } = setupInter({ adMgr: adMgr });
+test('failed interstitial show consumes nothing and never re-shows', () => {
+  const { im, setClock } = setupInter({ interMode: 'fail' });
   setClock(91000);
   im.noteWin(); im.noteWin(); im.noteWin();
-  adMgr.lastGrantTs = 90000;
-  assertEq(im.canShow(5).reason, 'afterRewarded');
-  adMgr.lastGrantTs = 1000;
-  assertEq(im.canShow(5).ok, true);
+  im.maybeShow(4);
+  assertEq(im.ad.shown, 1);
+  assertEq(im.ad.loadCalls, 1, 'failure only preloads for the next transition');
+  assertEq(im.winsSinceShow, 3, 'win gap intact after failed show');
+  assertEq(im.shownCount, 0);
+  assertEq(im.lastShowTs, 0, 'cooldown not consumed by a failed show');
+  assertEq(Platform.storage.get('screwmaster_intercount'), undefined, 'daily budget intact');
+  assertEq(im.canShow(4).ok, true, 'still eligible on the next transition');
+  Platform.inject(null);
+});
+
+test('interstitial cooldown persists across sessions', () => {
+  const { im, setClock } = setupInter();
+  setClock(91000);
+  im.noteWin(); im.noteWin(); im.noteWin();
+  im.maybeShow(4);
+  assertEq(im.shownCount, 1);
+  const im2 = new InterstitialManager({ now: () => 95000 });
+  im2.init();
+  assertEq(im2.lastShowTs, 91000, 'new session restores persisted cooldown anchor');
+  im2.noteWin(); im2.noteWin(); im2.noteWin();
+  assertEq(im2.canShow(4).reason, 'cooldown');
+  Platform.inject(null);
+});
+
+test('pending rewarded ad rejects concurrent show requests', () => {
+  let closeCb = null;
+  const fakeAd = {
+    onClose(cb) { closeCb = cb; },
+    onError() {},
+    show() { return Promise.resolve(); },
+    load() { return Promise.resolve(); }
+  };
+  const mock = Platform.createMockPlatform({
+    createRewardedVideoAd: () => fakeAd,
+    now: () => 50000
+  });
+  Platform.inject(mock);
+  const ad = new AdManager({ unitId: 'adunit-real', now: () => 50000 });
+  ad.init();
+  let first = null;
+  let second = null;
+  ad.show('hint', r => { first = r; });
+  ad.show('undo', r => { second = r; });
+  assertEq(second && second.rewarded, false);
+  assertEq(second && second.reason, 'busy');
+  assertEq(first, null, 'first callback kept pending until close');
+  closeCb({ isEnded: true });
+  assert(first && first.rewarded === true);
+  Platform.inject(null);
+});
+
+section('TemplateAdManager');
+
+const TemplateAdManager = require('../js/ad/TemplateAdManager');
+
+function fakeCustomAd() {
+  return {
+    style: { left: 0, top: 0 },
+    shown: 0,
+    hidden: 0,
+    isShow: false,
+    errCb: null,
+    loadCb: null,
+    show() { this.shown++; this.isShow = true; return Promise.resolve(); },
+    hide() { this.hidden++; this.isShow = false; },
+    onError(cb) { this.errCb = cb; },
+    onLoad(cb) { this.loadCb = cb; },
+    onResize() {}
+  };
+}
+
+function setupTemplate() {
+  const created = [];
+  const mock = Platform.createMockPlatform({
+    createCustomAd: (opts) => {
+      const a = fakeCustomAd();
+      a.style = opts.style;
+      created.push(a);
+      return a;
+    }
+  });
+  Platform.inject(mock);
+  const m = new TemplateAdManager({ screen: { width: 375, height: 667 } });
+  m.init();
+  return { m, ad: created[0], created };
+}
+
+test('template ad is a no-op without platform API', () => {
+  const mock = Platform.createMockPlatform();
+  Platform.inject(mock);
+  const m = new TemplateAdManager({ screen: { width: 375, height: 667 } });
+  m.init();
+  assertEq(m.isMock(), true);
+  assertEq(m.setActive(true), false);
+  assertEq(m.active, false);
+  Platform.inject(null);
+});
+
+test('template ad is created lazily on first activation', () => {
+  const created = [];
+  const mock = Platform.createMockPlatform({
+    createCustomAd: (opts) => {
+      const a = fakeCustomAd();
+      a.style = opts.style;
+      created.push(a);
+      return a;
+    }
+  });
+  Platform.inject(mock);
+  const m = new TemplateAdManager({ screen: { width: 375, height: 667 } });
+  assertEq(created.length, 0, 'no native component at construction');
+  assertEq(m.setActive(false), false, 'hide before creation is a no-op');
+  assertEq(created.length, 0);
+  assertEq(m.setActive(true), true);
+  assertEq(created.length, 1, 'created on first activation');
+  m.setActive(false);
+  m.setActive(true);
+  assertEq(created.length, 1, 'instance reused across visits');
+  Platform.inject(null);
+});
+
+test('template ad stays hidden until activated by a menu surface', () => {
+  const { m, ad } = setupTemplate();
+  assert(ad, 'instance created');
+  assertEq(ad.shown, 0, 'not shown on init');
+  assertEq(ad.hidden, 0, 'no preemptive hide before load (would break loading on device)');
+  assertEq(m.setActive(true), true);
+  assertEq(ad.shown, 1);
+  assertEq(m.setActive(true), false, 'repeated activation is a no-op');
+  assertEq(ad.shown, 1);
+  assertEq(m.setActive(false), true);
+  assertEq(ad.isShow, false, 'hidden when leaving menus');
+  m.setActive(true);
+  assertEq(ad.shown, 2, 'reactivation allowed');
+  Platform.inject(null);
+});
+
+test('template ad loaded while inactive stays hidden and shows on activation', () => {
+  const { m, ad } = setupTemplate();
+  ad.loadCb();
+  assertEq(ad.isShow, false, 'never shown before activation');
+  m.setActive(true);
+  assertEq(ad.shown, 1, 'load-then-activate shows immediately');
+  Platform.inject(null);
+});
+
+test('template banner anchors bottom above safe area with 20:7 ratio', () => {
+  const { m, ad } = setupTemplate();
+  assertEq(ad.style.top, 536, '667 - round(375*7/20)=131, flush to safe area');
+  assertEq(ad.style.left, 0);
+  m.layout({ width: 375, height: 667 }, 34);
+  assertEq(ad.style.top, 502, 'safe-area inset respected');
+  ad.style.height = 80;
+  ad.loadCb && ad.loadCb();
+  assertEq(ad.style.top, 553, 'repositioned with real template height');
+  Platform.inject(null);
+});
+
+test('template ad hides on error but retries on next activation', () => {
+  const { m, ad } = setupTemplate();
+  m.setActive(true);
+  assertEq(ad.shown, 1);
+  ad.errCb && ad.errCb({ errCode: 1004 });
+  assertEq(ad.isShow, false, 'auto-hidden on fill error');
+  assert(m.events.some(e => e.type === 'error'), 'error recorded');
+  assertEq(m.setActive(false), true);
+  m.setActive(true);
+  assertEq(ad.shown, 2, 'fill errors do not permanently disable the unit');
+  Platform.inject(null);
+});
+
+test('template ad creation throw degrades to mock', () => {
+  const mock = Platform.createMockPlatform({
+    createCustomAd: () => { throw new Error('bad unit'); }
+  });
+  Platform.inject(mock);
+  const m = new TemplateAdManager({});
+  m.init();
+  assertEq(m.isMock(), true);
+  assertEq(m.setActive(true), false);
+  Platform.inject(null);
+});
+
+test('function-typed isShow (real device quirk) is unwrapped', () => {
+  const { m, ad } = setupTemplate();
+  let shownFlag = false;
+  ad.isShow = () => shownFlag;
+  ad.show = () => { ad.shown++; shownFlag = true; return Promise.resolve(); };
+  ad.hide = () => { ad.hidden++; shownFlag = false; };
+  ad.loadCb();
+  m.setActive(true);
+  assertEq(ad.shown, 1, 'show invoked when isShow() reports hidden');
+  m.setActive(false);
+  shownFlag = true;
+  m.setActive(true);
+  assertEq(ad.shown, 1, 'skips show while isShow() reports visible');
+  shownFlag = false;
+  m.setActive(false);
+  m.setActive(true);
+  assertEq(ad.shown, 2, 'shows again once hidden');
   Platform.inject(null);
 });

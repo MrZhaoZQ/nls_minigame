@@ -165,7 +165,7 @@ test('result panel outranks level select and menu clears dialogs', () => {
   assertEq(app.failPanel.visible, false, 'showMenu clears fail panel');
 
   app.levelSelect.show({
-    levels: [1, 2, 3], unlocked: 3, results: {}, capacity: 5, coins: 0, canExpand: false
+    levels: [1, 2, 3], unlocked: 3, results: {}, capacity: 5, coins: 0
   });
   app.resultPanel.show(10, null);
   app.resultPanel._layout();
@@ -211,7 +211,6 @@ test('coin purchases go through modal confirm', () => {
   app.tutorial.done();
 
   SaveManager.addCoins(100);
-  app.syncCoins();
 
   const game = app.game;
   let target = null;
@@ -313,7 +312,6 @@ test('fail panel coin rescue undoes the last step and charges only on success', 
   app.tutorial.done();
 
   SaveManager.addCoins(100);
-  app.syncCoins();
 
   const game = app.game;
   const cap = game.slotManager.capacity;
@@ -369,6 +367,157 @@ test('fail panel coin rescue undoes the last step and charges only on success', 
   assertEq(target.node.parent, target.holeNode, 'screw node reattached to its hole');
   assertEq(app.failPanel.visible, false, 'fail panel closed');
   assertEq(app.levelStats.rescues, 1, 'rescue counted once');
+
+  Platform.inject(null);
+  delete require.cache[require.resolve('../js/main')];
+});
+
+test('undo falls back to rewarded video when coins run short', () => {
+  let clock = 0;
+  const frames = [];
+  const mock = require('../js/platform/Platform').createMockPlatform({
+    createCanvas: () => null,
+    raf: (cb) => { frames.push(cb); return frames.length; },
+    now: () => clock
+  });
+  const Platform = require('../js/platform/Platform');
+  const SaveManager = require('../js/core/SaveManager');
+  Platform.inject(mock);
+
+  delete require.cache[require.resolve('../js/main')];
+  const bootstrap = require('../js/main');
+  const app = bootstrap();
+
+  const stepFrames = (n, dtMs) => {
+    for (let i = 0; i < n; i++) {
+      clock += dtMs;
+      const cb = frames.shift();
+      cb(clock);
+    }
+  };
+  const tapAt = (x, y) => {
+    mock.touchHandlers.start.forEach(h => h({ touches: [{ identifier: 0, clientX: x, clientY: y }], changedTouches: [{ identifier: 0, clientX: x, clientY: y }] }));
+    mock.touchHandlers.end.forEach(h => h({ touches: [], changedTouches: [{ identifier: 0, clientX: x, clientY: y }] }));
+  };
+
+  stepFrames(2, 16);
+  app.tutorial.done();
+  clock = 50000;
+
+  SaveManager.addCoins(10);
+
+  const game = app.game;
+  const target = game.screwManager.screws.find(s => s.state === 'unlocked');
+  assert(target, 'collectable screw found');
+  const stamp = app.scene.beginFrame();
+  const wp = target.node.worldPos(stamp);
+  const scr = app.camera.project([wp[0], wp[1] + 0.06, wp[2]]);
+  tapAt(scr.x, scr.y);
+  stepFrames(30, 20);
+  assertEq(game.slotManager.count(), 1, 'one screw collected');
+
+  game.freeUndoLeft = 0;
+  game.adUndoLeft = 0;
+  const undoBtn = app.topBar.buttons.find(b => b.id === 'undo');
+  assert(app.topBar.isEnabled('undo'), 'undo stays lit: ad fallback exists');
+  tapAt(undoBtn.x, undoBtn.y);
+  stepFrames(2, 16);
+  assertEq(game.slotManager.count(), 0, 'video-funded undo restored the slot');
+  assertEq(SaveManager.getCoins(), 10, 'no coins touched');
+  assertEq(game.adUndoLeft, 0, 'granted credit spent by the undo itself');
+  assertEq(game.state, 'playing');
+
+  tapAt(scr.x, scr.y);
+  stepFrames(30, 20);
+  assertEq(game.slotManager.count(), 1, 'collected again for the lose-state undo leg');
+  game.slotManager.slots = ['red', 'blue', 'green', 'yellow', 'purple'];
+  game.state = 'lose';
+  app.bus.emit('LEVEL_LOSE', { level: app.currentLevelId, slots: game.slotManager.slots.slice() });
+  stepFrames(2, 16);
+  assert(app.failPanel.visible, 'fail panel up again');
+  clock += 50000;
+  tapAt(undoBtn.x, undoBtn.y);
+  stepFrames(2, 16);
+  assertEq(game.state, 'playing', 'top-bar ad undo rescues from lose');
+  assertEq(game.slotManager.count(), 0, 'snapshot before the last screw restored');
+  assertEq(app.failPanel.visible, false, 'UNDO_DONE closes the stale fail panel');
+
+  Platform.inject(null);
+  delete require.cache[require.resolve('../js/main')];
+});
+
+test('level select hosts the persistent template banner', () => {
+  let clock = 0;
+  const frames = [];
+  const created = [];
+  const mock = require('../js/platform/Platform').createMockPlatform({
+    createCanvas: () => null,
+    raf: (cb) => { frames.push(cb); return frames.length; },
+    now: () => clock,
+    createCustomAd: (o) => {
+      const a = {
+        style: o.style,
+        shown: 0,
+        hidden: 0,
+        isShow: false,
+        show() { this.shown++; this.isShow = true; return Promise.resolve(); },
+        hide() { this.hidden++; this.isShow = false; return Promise.resolve(); },
+        onError() {}, onLoad() {}, onResize() {}
+      };
+      created.push(a);
+      return a;
+    }
+  });
+  const Platform = require('../js/platform/Platform');
+  const SaveManager = require('../js/core/SaveManager');
+  Platform.inject(mock);
+
+  delete require.cache[require.resolve('../js/main')];
+  const bootstrap = require('../js/main');
+  const app = bootstrap();
+
+  const stepFrames = (n, dtMs) => {
+    for (let i = 0; i < n; i++) {
+      clock += dtMs;
+      const cb = frames.shift();
+      cb(clock);
+    }
+  };
+  const tapAt = (x, y) => {
+    mock.touchHandlers.start.forEach(h => h({ touches: [{ identifier: 0, clientX: x, clientY: y }], changedTouches: [{ identifier: 0, clientX: x, clientY: y }] }));
+    mock.touchHandlers.end.forEach(h => h({ touches: [], changedTouches: [{ identifier: 0, clientX: x, clientY: y }] }));
+  };
+
+  stepFrames(2, 16);
+  SaveManager.setTutorialDone();
+  app.tutorial.done();
+  app.showMenu();
+  stepFrames(2, 16);
+
+  const ad = created[0];
+  assert(ad, 'template ad instance created');
+  assertEq(created.length, 1, 'only the visible surface unit is created (lazy)');
+  assertEq(app.templateAds.levelSelect.active, true, 'banner live on level select');
+  assertEq(ad.isShow, true);
+  assertEq(app.levelSelect.viewBottom, 667 - app.levelSelect.bottomReserve, 'grid shortened for the banner');
+  assert(app.levelSelect.viewBottom <= ad.style.top, 'grid ends above the banner');
+  assertEq(app.levelSelect.hitTest(187, 600), null, 'banner zone yields no cell hits');
+
+  const c1 = app.levelSelect.cells[0];
+  tapAt(c1.x + c1.w / 2, c1.y + c1.h / 2);
+  stepFrames(2, 16);
+  assertEq(app.currentLevelId, 1, 'level entered');
+  assertEq(app.templateAds.levelSelect.active, false, 'banner hidden during gameplay');
+  assertEq(ad.isShow, false);
+
+  const pauseBtn = app.topBar.buttons.find(b => b.id === 'pause');
+  tapAt(pauseBtn.x, pauseBtn.y);
+  stepFrames(2, 16);
+  assertEq(app.pausePanel.visible, true);
+  assertEq(created.length, 2, 'pause unit created on first visit');
+  assertEq(app.templateAds.pause.active, true, 'pause surface uses its own unit');
+  assertEq(created[1].isShow, true);
+  assertEq(app.templateAds.levelSelect.active, false, 'level select unit hidden on pause');
 
   Platform.inject(null);
   delete require.cache[require.resolve('../js/main')];

@@ -38,15 +38,12 @@ test('buttons keep clear of screen edge', () => {
   }
 });
 
-test('undo stays enabled while coins can buy one', () => {
+test('undo stays lit with coin and rewarded fallbacks', () => {
   const tb = new TopBar(new EventBus(), 375, 667, CAPSULE);
   tb.setUndoQuota(1);
   assert(tb.isEnabled('undo'), 'enabled with quota');
   tb.setUndoQuota(0);
-  tb.undoCoinAffordable = false;
-  assertEq(tb.isEnabled('undo'), false, 'grey only when quota empty and coins short');
-  tb.undoCoinAffordable = true;
-  assert(tb.isEnabled('undo'), 'buyable with coins keeps it lit');
+  assertEq(tb.isEnabled('undo'), true, 'stays lit without quota: coin modal and ad rescue follow');
   tb.allDisabled = true;
   assertEq(tb.isEnabled('undo'), false, 'tutorial still overrides');
   tb.allDisabled = false;

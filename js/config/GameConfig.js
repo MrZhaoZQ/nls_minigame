@@ -14,8 +14,15 @@ const GameConfig = {
   ad: { unitId: 'adunit-5d823507f82ee7ab', mode: 'ad', cooldownMs: 45000, dailyLimit: 15,
         perLevelLimit: 2,
         interUnitId: 'adunit-d11de76248f20c6a',
-        interCooldownMs: 90000, interDailyLimit: 8, interProtectedLevels: 3,
-        interWinGap: 3, interAfterRewardedMs: 60000 },
+        interCooldownMs: 90000, interDailyLimit: 8, interProtectedLevels: 1,
+        interWinGap: 2,
+        templateUnitIds: {
+          levelSelect: 'adunit-f886986b0c0413d5',
+          pause: 'adunit-7f7b78cfd368c529',
+          result: 'adunit-3ba905bad18a1e03'
+        },
+        templateAdIntervals: 30,
+        templateMargin: 0, templateRatio: [20, 7] },
   share: {
     cooldownMs: 5000, perLevelLimit: 3, dailyLimit: 30,
     imageUrl: 'https://mmocgame.qpic.cn/wechatgame/Ywjy1K1L6eNtDDlF1cdWvqrdUriat9MAygoC1eZNAdicUOq0aNCKmJnQwZodpjhdKV/0',

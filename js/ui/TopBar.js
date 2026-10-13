@@ -12,7 +12,6 @@ class TopBar {
     this.levelLabel = '';
     this.remaining = 0;
     this.undoQuota = 1;
-    this.undoCoinAffordable = false;
     this.hintEnabled = false;
     this.allDisabled = false;
     this.buttons = [];
@@ -55,7 +54,6 @@ class TopBar {
 
   isEnabled(id) {
     if (this.allDisabled) return false;
-    if (id === 'undo') return this.undoQuota > 0 || this.undoCoinAffordable;
     if (id === 'hint') return this.hintEnabled;
     return true;
   }
