@@ -238,6 +238,24 @@ test('pending rewarded ad rejects concurrent show requests', () => {
   Platform.inject(null);
 });
 
+test('rewarded ad is not preloaded at startup', () => {
+  const fakeAd = {
+    loadCalls: 0,
+    onClose() {},
+    onError() {},
+    show() { return Promise.resolve(); },
+    load() { this.loadCalls++; return Promise.resolve(); }
+  };
+  const mock = Platform.createMockPlatform({
+    createRewardedVideoAd: () => fakeAd
+  });
+  Platform.inject(mock);
+  const ad = new AdManager({ unitId: 'adunit-real', now: () => 50000 });
+  ad.init();
+  assertEq(fakeAd.loadCalls, 0, 'no eager load at startup');
+  Platform.inject(null);
+});
+
 section('TemplateAdManager');
 
 const TemplateAdManager = require('../js/ad/TemplateAdManager');
@@ -387,5 +405,21 @@ test('function-typed isShow (real device quirk) is unwrapped', () => {
   m.setActive(false);
   m.setActive(true);
   assertEq(ad.shown, 2, 'shows again once hidden');
+  Platform.inject(null);
+});
+
+test('pending show is not re-triggered by onLoad (no double show)', () => {
+  const { m, ad } = setupTemplate();
+  ad.show = () => {
+    ad.shown++;
+    return new Promise(() => {});
+  };
+  m.setActive(true);
+  assertEq(ad.shown, 1, 'first activation shows once');
+  ad.loadCb && ad.loadCb();
+  assertEq(ad.shown, 1, 'onLoad during pending show must not re-show');
+  m.setActive(false);
+  m.setActive(true);
+  assertEq(ad.shown, 2, 're-activation after hide shows again');
   Platform.inject(null);
 });

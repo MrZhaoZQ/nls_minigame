@@ -14,6 +14,7 @@ class TemplateAdManager {
     this.realHeight = 0;
     this.tried = false;
     this.events = [];
+    this._showing = false;
   }
 
   _warn() {
@@ -113,6 +114,7 @@ class TemplateAdManager {
   }
 
   _hide() {
+    this._showing = false;
     try {
       const p = this.ad.hide();
       if (p && typeof p.catch === 'function') p.catch(() => {});
@@ -120,15 +122,25 @@ class TemplateAdManager {
   }
 
   _show() {
-    if (this._isShown()) return;
+    if (this._isShown() || this._showing) return;
     const self = this;
+    this._showing = true;
     try {
       const p = this.ad.show();
-      if (p && typeof p.catch === 'function') {
-        p.catch((e) => self._warn('show rejected', (e && e.errMsg) || e));
+      if (p && typeof p.then === 'function') {
+        p.then(
+          () => { self._showing = false; },
+          (e) => {
+            self._showing = false;
+            self._warn('show rejected', (e && e.errMsg) || e);
+          }
+        );
+      } else {
+        this._showing = false;
       }
       this.events.push({ type: 'show' });
     } catch (e) {
+      this._showing = false;
       this._warn('show threw', e);
     }
   }

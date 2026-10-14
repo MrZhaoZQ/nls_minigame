@@ -24,9 +24,6 @@ class AdManager {
     if (this.ad) {
       this.ad.onClose((res) => this._onClose(res));
       if (this.ad.onError) this.ad.onError((err) => this._onError(err));
-      if (this.ad.load) {
-        try { this.ad.load(); } catch (e) { return; }
-      }
     }
   }
 
