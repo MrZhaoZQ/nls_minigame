@@ -96,10 +96,19 @@ class LevelLoader {
     for (let i = 0; i < boards.length; i++) {
       const node = boards[i].node;
       const half = (node.mesh && node.mesh.halfExtents) || [1, 1, 1];
+      const rad = (boards[i].def && boards[i].def.rotation && boards[i].def.rotation[1] || 0) * DEG;
+      const c = Math.abs(Math.cos(rad));
+      const s = Math.abs(Math.sin(rad));
+      const scale = node._effectiveScale();
+      const ext = [
+        (half[0] * c + half[2] * s) * scale,
+        half[1] * scale,
+        (half[0] * s + half[2] * c) * scale
+      ];
       node.computeWorld(999999);
       const wp = node._worldPos;
       for (let k = 0; k < 3; k++) {
-        const extent = half[k] * node._effectiveScale();
+        const extent = ext[k];
         if (wp[k] - extent < min[k]) min[k] = wp[k] - extent;
         if (wp[k] + extent > max[k]) max[k] = wp[k] + extent;
       }

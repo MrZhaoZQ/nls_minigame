@@ -1,11 +1,12 @@
 'use strict';
 
-const BOARD_W = 3.6;
-const BOARD_D = 1.2;
 const HEAD_R = 0.16;
 const SCREW_MIN_DIST = 0.5;
 const TIGHT_FROM_LEVEL = 6;
 const TIGHT_MIN_RATE = 0.3;
+const COGNITIVE_FROM_LEVEL = 6;
+const COGNITIVE_MIN_ENTROPY = 0.1;
+const COGNITIVE_MIN_STRUCTURE = 1.15;
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -33,6 +34,23 @@ function totalScrews(level) {
   let n = 0;
   for (let i = 0; i < level.boards.length; i++) n += level.boards[i].holes.length;
   return n;
+}
+
+function prefabHalfExtents(prefab) {
+  if (prefab === 'Board_L') return { hw: 1.8, hd: 1.2 };
+  if (prefab === 'Board_Gear') return { hw: 1.6, hd: 1.6 };
+  return { hw: 1.8, hd: 0.6 };
+}
+
+function holeInFootprint(prefab, x, z, pad) {
+  const p = pad || 0;
+  if (prefab === 'Board_L') {
+    const inMain = x >= -1.8 + p && x <= 1.8 - p && z >= -0.6 + p && z <= 0.6 - p;
+    const inArm = x >= -1.8 + p && x <= -0.6 - p && z >= -1.8 + p && z <= -0.6;
+    return inMain || inArm;
+  }
+  const he = prefabHalfExtents(prefab);
+  return Math.abs(x) <= he.hw - p && Math.abs(z) <= he.hd - p;
 }
 
 function simulate(level, runs, capacityOverride, rng, deterministic, stopAtFirstDeath) {
@@ -159,6 +177,9 @@ function validate(level, opts) {
   const runs = o.runs || 100;
   const tightFrom = o.tightFrom != null ? o.tightFrom : TIGHT_FROM_LEVEL;
   const tightMin = o.tightMin != null ? o.tightMin : TIGHT_MIN_RATE;
+  const cogFrom = o.cogFrom != null ? o.cogFrom : COGNITIVE_FROM_LEVEL;
+  const cogEntropyMin = o.cogEntropyMin != null ? o.cogEntropyMin : COGNITIVE_MIN_ENTROPY;
+  const cogStructMin = o.cogStructMin != null ? o.cogStructMin : COGNITIVE_MIN_STRUCTURE;
 
   const boardIds = {};
   for (let i = 0; i < level.boards.length; i++) {
@@ -181,14 +202,11 @@ function validate(level, opts) {
 
   for (let i = 0; i < level.boards.length; i++) {
     const bd = level.boards[i];
-    const seen = {};
     for (let j = 0; j < bd.holes.length; j++) {
       const h = bd.holes[j];
-      if (Math.abs(h.pos[0]) > BOARD_W / 2 - HEAD_R - 0.04) {
-        errors.push(bd.id + '/' + h.id + ' hole x out of footprint');
-      }
-      if (Math.abs(h.pos[2]) > BOARD_D / 2 - HEAD_R - 0.02) {
-        errors.push(bd.id + '/' + h.id + ' hole z out of footprint');
+      const prefab = bd.prefab || 'Board_Single';
+      if (!holeInFootprint(prefab, h.pos[0], h.pos[2], HEAD_R + 0.04)) {
+        errors.push(bd.id + '/' + h.id + ' hole out of footprint');
       }
       if (h.coveredBy && h.coveredBy.length) {
         for (let k = 0; k < h.coveredBy.length; k++) {
@@ -277,8 +295,23 @@ function validate(level, opts) {
   };
 
   function finish(capacity, note) {
+    let cognitive = null;
+    let cogError = null;
+    if (level.id >= cogFrom) {
+      cognitive = measureCognitive();
+      if (cognitive.entropy < cogEntropyMin) {
+        cogError = 'flat: observation entropy ' + cognitive.entropy.toFixed(3) +
+          ' < ' + cogEntropyMin;
+      } else if (cognitive.structure < cogStructMin) {
+        cogError = 'sparse: structure complexity ' + cognitive.structure.toFixed(3) +
+          ' < ' + cogStructMin;
+      }
+    }
     if (level.id < tightFrom) {
-      return { ok: true, errors: [], deathRate: 0, adjustedSlotCount: capacity, note: note };
+      return {
+        ok: !cogError, errors: cogError ? [cogError] : [],
+        deathRate: 0, adjustedSlotCount: capacity, note: note, cognitive: cognitive
+      };
     }
     const rate = measureTight(capacity - 1);
     if (rate < tightMin) {
@@ -290,9 +323,70 @@ function validate(level, opts) {
         adjustedSlotCount: null
       };
     }
+    if (cogError) {
+      return {
+        ok: false,
+        errors: [cogError],
+        deathRate: 0,
+        adjustedSlotCount: null,
+        cognitive: cognitive
+      };
+    }
     return {
       ok: true, errors: [], deathRate: 0, adjustedSlotCount: capacity,
-      note: note, tightRate: rate
+      note: note, tightRate: rate, cognitive: cognitive
+    };
+  }
+
+  function measureCognitive() {
+    const total = totalScrews(level);
+    const colorCounts = {};
+    for (let i = 0; i < level.boards.length; i++) {
+      for (let j = 0; j < level.boards[i].holes.length; j++) {
+        const c = level.boards[i].holes[j].color;
+        colorCounts[c] = (colorCounts[c] || 0) + 1;
+      }
+    }
+    const colorNames = Object.keys(colorCounts);
+
+    let entropy = 0;
+    for (let i = 0; i < colorNames.length; i++) {
+      const p = colorCounts[colorNames[i]] / total;
+      if (p > 0) entropy -= p * Math.log(p);
+    }
+    entropy /= Math.log(Math.max(2, colorNames.length));
+
+    const perColorBoards = {};
+    for (let i = 0; i < colorNames.length; i++) perColorBoards[colorNames[i]] = {};
+    for (let i = 0; i < level.boards.length; i++) {
+      const b = level.boards[i];
+      for (let j = 0; j < b.holes.length; j++) {
+        const c = b.holes[j].color;
+        perColorBoards[c][b.id] = (perColorBoards[c][b.id] || 0) + 1;
+      }
+    }
+    let spreadSum = 0;
+    for (let i = 0; i < colorNames.length; i++) {
+      const c = colorNames[i];
+      const boardsWith = Object.keys(perColorBoards[c]).length;
+      if (boardsWith > 1) spreadSum += boardsWith;
+    }
+    const spread = colorNames.length > 0 ? spreadSum / colorNames.length : 0;
+
+    let distinctShape = 0;
+    let yawVariety = 0;
+    for (let i = 0; i < level.boards.length; i++) {
+      if ((level.boards[i].prefab || 'Board_Single') !== 'Board_Single') distinctShape++;
+      const y = Math.abs(level.boards[i].rotation[1] || 0) % 180;
+      if (y > 5 && y < 175) yawVariety++;
+    }
+    const shapeRatio = distinctShape / level.boards.length;
+    const yawRatio = yawVariety / level.boards.length;
+
+    return {
+      entropy,
+      spread,
+      structure: 1 + shapeRatio * 3 + yawRatio * 2
     };
   }
 
@@ -316,4 +410,4 @@ function validate(level, opts) {
   }
 }
 
-module.exports = { validate, simulate, colorTotals, totalScrews };
+module.exports = { validate, simulate, colorTotals, totalScrews, holeInFootprint };

@@ -146,9 +146,115 @@ test('loose level rejected by tightness gate', () => {
       ]
     }]
   };
-  const res = validator.validate(loose, { runs: 40 });
+  const res = validator.validate(loose, { runs: 40, cogFrom: 99 });
   assertEq(res.ok, false, 'single flat board has no slot pressure');
   assert(res.errors.some(e => e.indexOf('loose') === 0), res.errors.join('; '));
-  const exempt = validator.validate(loose, { runs: 40, tightFrom: 99 });
+  const exempt = validator.validate(loose, { runs: 40, tightFrom: 99, cogFrom: 99 });
   assertEq(exempt.ok, true, 'tightFrom override skips the gate');
+});
+
+test('cognitive gate rejects a flat mono-shape level', () => {
+  const flat = {
+    id: 6, name: 'flat', colors: ['red', 'blue', 'green'], slotCount: 5, gridSize: 5,
+    boards: [{
+      id: 'b1', prefab: 'Board_Single', position: [0, 0, 0], rotation: [0, 0, 0],
+      holes: [
+        { id: 'h1', pos: [-1.4, 0, -0.26], color: 'red' },
+        { id: 'h2', pos: [-0.7, 0, 0.26], color: 'red' },
+        { id: 'h3', pos: [0, 0, -0.26], color: 'red' },
+        { id: 'h4', pos: [0.7, 0, 0.26], color: 'blue' },
+        { id: 'h5', pos: [1.4, 0, -0.26], color: 'blue' },
+        { id: 'h6', pos: [1.4, 0, 0.26], color: 'blue' },
+        { id: 'h7', pos: [-1.4, 0, 0.26], color: 'green' },
+        { id: 'h8', pos: [-0.7, 0, -0.26], color: 'green' },
+        { id: 'h9', pos: [0, 0, 0.26], color: 'green' }
+      ]
+    }]
+  };
+  const res = validator.validate(flat, { runs: 40, tightFrom: 99 });
+  assertEq(res.ok, false, 'single-board level lacks spatial structure');
+  assert(res.errors.some(e => e.indexOf('sparse') === 0 || e.indexOf('flat') === 0), res.errors.join('; '));
+  const exempt = validator.validate(flat, { runs: 40, tightFrom: 99, cogFrom: 99 });
+  assertEq(exempt.ok, true, 'cogFrom override skips the structure gate');
+});
+
+test('generator emits shape variety and yaw variety from level 3', () => {
+  let anyShape = false, anyYaw = false;
+  for (let seed = 1; seed <= 200; seed++) {
+    const lvl = generator.generateLevel(10, seed * 97);
+    for (let i = 0; i < lvl.boards.length; i++) {
+      if ((lvl.boards[i].prefab || 'Board_Single') !== 'Board_Single') anyShape = true;
+      const y = Math.abs(lvl.boards[i].rotation[1] || 0) % 180;
+      if (y > 5 && y < 175) anyYaw = true;
+    }
+  }
+  assert(anyShape, 'growing-stage levels should mix in L/gear boards');
+  assert(anyYaw, 'growing-stage levels should mix in yaw rotation');
+});
+
+test('early levels 1-2 stay single-board teaching shapes', () => {
+  for (let seed = 1; seed <= 50; seed++) {
+    const lvl = generator.generateLevel(1, seed);
+    for (let i = 0; i < lvl.boards.length; i++) {
+      assertEq(lvl.boards[i].prefab, 'Board_Single', 'level 1 must stay teaching shape');
+    }
+    const lvl2 = generator.generateLevel(2, seed);
+    for (let i = 0; i < lvl2.boards.length; i++) {
+      assertEq(lvl2.boards[i].prefab, 'Board_Single', 'level 2 must stay teaching shape');
+    }
+  }
+});
+
+test('L board and gear holes sit inside their footprints', () => {
+  const l = { id: 90, name: 'l', colors: ['red'], slotCount: 5, gridSize: 5,
+    boards: [{
+      id: 'b1', prefab: 'Board_L', position: [0, 0, 0], rotation: [0, 0, 0],
+      holes: [
+        { id: 'h1', pos: [-1.5, 0, -1.1], color: 'red' },
+        { id: 'h2', pos: [-0.9, 0, -1.1], color: 'red' },
+        { id: 'h3', pos: [0, 0, 0.26], color: 'red' }
+      ]
+    }] };
+  const res = validator.validate(l, { runs: 1, tightFrom: 99, cogFrom: 99 });
+  assertEq(res.ok, true, 'L-board arm holes are inside footprint: ' + res.errors.join('; '));
+});
+
+test('L arm hole off the mesh quadrant is rejected', () => {
+  const bad = { id: 90, name: 'bad', colors: ['red'], slotCount: 5, gridSize: 5,
+    boards: [{
+      id: 'b1', prefab: 'Board_L', position: [0, 0, 0], rotation: [0, 0, 0],
+      holes: [
+        { id: 'h1', pos: [0, 0, -1.1], color: 'red' },
+        { id: 'h2', pos: [-0.9, 0, -1.1], color: 'red' },
+        { id: 'h3', pos: [0, 0, 0.26], color: 'red' }
+      ]
+    }] };
+  const res = validator.validate(bad, { runs: 1, tightFrom: 99, cogFrom: 99 });
+  assertEq(res.ok, false, 'hole at x=0,z=-1.1 floats outside the L arm (mesh arm is x[-1.8,-0.6])');
+  assert(res.errors.some(e => e.indexOf('out of footprint') >= 0), res.errors.join('; '));
+});
+
+test('single-board z out-of-plane holes are rejected', () => {
+  assertEq(validator.holeInFootprint('Board_Single', 0, 1.0, 0.2), false,
+    'z must be clamped by board depth, not width');
+  assertEq(validator.holeInFootprint('Board_Single', 0, 0.26, 0.2), true);
+  assertEq(validator.holeInFootprint('Board_Gear', 1.1, 0, 0.2), true);
+});
+
+test('every generated hole sits on its board mesh', () => {
+  const ids = [3, 6, 10, 16, 21, 26, 30];
+  for (let ii = 0; ii < ids.length; ii++) {
+    for (let seed = 1; seed <= 60; seed++) {
+      const lvl = generator.generateLevel(ids[ii], seed * 131);
+      for (let i = 0; i < lvl.boards.length; i++) {
+        const b = lvl.boards[i];
+        for (let j = 0; j < b.holes.length; j++) {
+          const p = b.holes[j].pos;
+          assert(validator.holeInFootprint(b.prefab, p[0], p[2], 0.2),
+            'level ' + ids[ii] + ' seed ' + seed * 131 + ' ' + b.id + '/' + b.holes[j].id +
+            ' hole off ' + b.prefab + ' mesh');
+        }
+      }
+    }
+  }
 });

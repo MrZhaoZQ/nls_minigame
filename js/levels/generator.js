@@ -16,18 +16,43 @@ const STAGES = [
   { max: 15, layers: [3, 3], boards: [5, 7], colors: [4, 5], screws: [27, 34], cover: 0.8 },
   { max: 20, layers: [3, 4], boards: [6, 9], colors: [5, 5], screws: [30, 38], cover: 0.9 },
   { max: 25, layers: [4, 4], boards: [7, 10], colors: [5, 5], screws: [34, 44], cover: 0.92 },
-  { max: 999, layers: [4, 5], boards: [8, 12], colors: [5, 6], screws: [42, 54], cover: 0.85 }
+  { max: 999, layers: [4, 5], boards: [8, 12], colors: [5, 5], screws: [42, 54], cover: 0.85 }
 ];
 
 const COLOR_NAMES = ['red', 'blue', 'yellow', 'green', 'purple', 'orange'];
 
 const EARLY = {
   1: { layers: [1, 1], boards: [1, 2], colors: [3, 3], screws: [9, 9], cover: 0 },
-  2: { layers: [2, 2], boards: [2, 3], colors: [3, 3], screws: [12, 12], cover: 0.3 },
+  2: { layers: [2, 2], boards: [2, 3], colors: [4, 4], screws: [12, 12], cover: 0.3 },
   3: { layers: [2, 2], boards: [3, 3], colors: [4, 4], screws: [15, 15], cover: 0.4 },
   4: { layers: [2, 3], boards: [3, 4], colors: [4, 4], screws: [18, 18], cover: 0.5 },
   5: { layers: [3, 3], boards: [4, 4], colors: [4, 4], screws: [21, 21], cover: 0.6 }
 };
+
+const PREFABS = ['Board_Single', 'Board_L', 'Board_Gear'];
+
+const SINGLE_HOLE_GRID = [
+  [-1.4, -0.26], [-1.4, 0.26],
+  [-0.7, -0.26], [-0.7, 0.26],
+  [0, -0.26], [0, 0.26],
+  [0.7, -0.26], [0.7, 0.26],
+  [1.4, -0.26], [1.4, 0.26]
+];
+
+const L_HOLE_GRID = [
+  [-1.4, -0.26], [-1.4, 0.26],
+  [-0.7, -0.26], [-0.7, 0.26],
+  [0, -0.26], [0, 0.26],
+  [0.7, -0.26], [0.7, 0.26],
+  [1.4, -0.26], [1.4, 0.26],
+  [-1.5, -1.1], [-0.9, -1.1]
+];
+
+const GEAR_HOLE_GRID = [
+  [-1.1, 0], [-0.55, -0.95], [0.55, -0.95],
+  [1.1, 0], [0.55, 0.95], [-0.55, 0.95],
+  [-0.55, 0], [0.55, 0]
+];
 
 function stageOf(levelId) {
   if (EARLY[levelId]) return EARLY[levelId];
@@ -61,13 +86,38 @@ function distributeColors(total, numColors) {
   return counts;
 }
 
+function prefabHalfExtents(prefab) {
+  if (prefab === 'Board_L') return { hw: 1.8, hd: 1.2 };
+  if (prefab === 'Board_Gear') return { hw: 1.6, hd: 1.6 };
+  return { hw: 1.8, hd: 0.6 };
+}
+
+function holeGridOf(prefab) {
+  if (prefab === 'Board_L') return L_HOLE_GRID;
+  if (prefab === 'Board_Gear') return GEAR_HOLE_GRID;
+  return SINGLE_HOLE_GRID;
+}
+
+function woodXReach(prefab, yaw) {
+  const rad = yaw * Math.PI / 180;
+  const c = Math.cos(rad), s = Math.sin(rad);
+  const ac = Math.abs(c), as = Math.abs(s);
+  if (prefab === 'Board_Gear') return 1.6;
+  const main = 1.8 * ac + 0.6 * as;
+  if (prefab === 'Board_L') {
+    const arm = Math.abs(-1.2 * c + 1.2 * s) + 0.6 * (ac + as);
+    return Math.max(main, arm);
+  }
+  return main;
+}
+
 function boardFootprint(boardDef) {
   const rad = (boardDef.rotation[1] || 0) * Math.PI / 180;
-  const w = 3.6, d = 1.2;
+  const he = prefabHalfExtents(boardDef.prefab || 'Board_Single');
   const cos = Math.abs(Math.cos(rad)), sin = Math.abs(Math.sin(rad));
   return {
-    hw: (w * cos + d * sin) / 2,
-    hd: (w * sin + d * cos) / 2
+    hw: he.hw * cos + he.hd * sin,
+    hd: he.hw * sin + he.hd * cos
   };
 }
 
@@ -79,9 +129,18 @@ function generateLevel(levelId, seed) {
   const boardCount = pickRange(rng, stage.boards);
   const colorCount = pickRange(rng, stage.colors);
 
-  const GRID_CAPACITY = 10;
+  const shapePool = [];
+  const shapeChance = levelId < 3 ? 0 : (levelId <= 5 ? 0.2 : 0.35);
+  for (let i = 0; i < boardCount; i++) {
+    if (rng() < shapeChance) shapePool.push(PREFABS[1 + Math.floor(rng() * 2)]);
+    else shapePool.push('Board_Single');
+  }
+  const yawChance = levelId < 3 ? 0 : (levelId <= 5 ? 0.2 : 0.5);
+
+  const capacityOf = (b) => holeGridOf(shapePool[b]).length;
+
   let targetScrews = pickRange(rng, stage.screws);
-  targetScrews = Math.min(targetScrews, boardCount * GRID_CAPACITY);
+  targetScrews = Math.min(targetScrews, boardCount * 10);
   targetScrews = Math.max(boardCount * 1, Math.round(targetScrews / 3) * 3);
 
   const perBoardMin = 1;
@@ -89,12 +148,12 @@ function generateLevel(levelId, seed) {
   let assigned = 0;
   for (let b = 0; b < boardCount; b++) {
     if (b === boardCount - 1) {
-      holesPerBoard.push(Math.max(perBoardMin, Math.min(GRID_CAPACITY, targetScrews - assigned)));
+      holesPerBoard.push(Math.max(perBoardMin, Math.min(capacityOf(b), targetScrews - assigned)));
     } else {
       const remainingBoards = boardCount - b;
       const left = targetScrews - assigned;
       const avg = left / remainingBoards;
-      let n = Math.max(perBoardMin, Math.min(GRID_CAPACITY, Math.round(avg + (rng() * 2 - 1))));
+      let n = Math.max(perBoardMin, Math.min(capacityOf(b), Math.round(avg + (rng() * 2 - 1))));
       n = Math.min(n, left - (remainingBoards - 1) * perBoardMin);
       holesPerBoard.push(n);
       assigned += n;
@@ -113,8 +172,9 @@ function generateLevel(levelId, seed) {
   for (let c = 0; c < colorCounts.length; c++) {
     for (let k = 0; k < colorCounts[c]; k++) colorPool.push(COLOR_NAMES[c]);
   }
+  const colorRng = mulberry32((seed != null ? seed : levelId * 7919 + 13) ^ 0x9E3779B9);
   for (let i = colorPool.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
+    const j = Math.floor(colorRng() * (i + 1));
     const tmp = colorPool[i]; colorPool[i] = colorPool[j]; colorPool[j] = tmp;
   }
 
@@ -136,36 +196,56 @@ function generateLevel(levelId, seed) {
   for (let l = 0; l < layerCount; l++) {
     const layerBoards = boardsPerLayer[l];
     if (layerBoards.length === 0) continue;
+    const n2 = layerBoards.length;
+    const yaws = new Array(n2);
+    const reaches = new Array(n2);
+    for (let li = 0; li < n2; li++) {
+      const pref = shapePool[layerBoards[li]];
+      const rot90 = pref === 'Board_Single' && n2 === 1 && rng() < 0.3;
+      let yaw = rot90 ? 90 : 0;
+      if (!rot90 && rng() < yawChance) {
+        yaw = [20, 40, 60, 80, -20, -40, -60, -80][Math.floor(rng() * 8)];
+      }
+      yaws[li] = yaw;
+      reaches[li] = woodXReach(pref, yaw);
+    }
+    const rawX = new Array(n2);
+    rawX[0] = 0;
+    for (let li = 1; li < n2; li++) {
+      rawX[li] = rawX[li - 1] + Math.max(spacing, reaches[li - 1] + reaches[li] + 0.9);
+    }
+    const jitter = levelId < 3 ? 0.25 : 0.7;
+
     for (let li = 0; li < layerBoards.length; li++) {
       const b = layerBoards[li];
       boardSeq++;
-      const rot90 = layerBoards.length === 1 && rng() < 0.3;
-      const groupX = (li - (layerBoards.length - 1) / 2) * spacing;
-      const px = groupX + (rng() * 0.5 - 0.25);
+      const prefab = shapePool[b];
+      const yaw = yaws[li];
+
+      const groupX = rawX[li] - rawX[n2 - 1] / 2;
+      const px = groupX + (rng() * jitter - jitter / 2);
       const pz = (rng() * 0.7 - 0.35) * (l % 2 === 0 ? 1 : -1);
+
       const def = {
         id: 'b' + boardSeq,
-        prefab: 'Board_Single',
+        prefab: prefab,
         position: [px, l * layerGap, pz],
-        rotation: [0, rot90 ? 90 : 0, 0],
+        rotation: [0, yaw, 0],
         collapseType: 'tween',
         holes: []
       };
-      maxExtent = Math.max(maxExtent, Math.abs(px) + 2.0, Math.abs(pz) + 1.0);
+      const fp = prefabHalfExtents(prefab);
+      maxExtent = Math.max(maxExtent, Math.abs(px) + fp.hw + 0.6, Math.abs(pz) + fp.hd + 0.6);
 
       const n = holesPerBoard[b];
+      const grid = holeGridOf(prefab);
       const slots = [];
-      const xs = [-1.4, -0.7, 0, 0.7, 1.4];
-      const zs = [-0.26, 0.26];
       const used = {};
-      let guard = 0;
-      while (slots.length < n && guard++ < 300) {
-        const xi = Math.floor(rng() * xs.length);
-        const zi = Math.floor(rng() * zs.length);
-        const key = xi + '_' + zi;
-        if (used[key]) continue;
-        used[key] = true;
-        slots.push([xs[xi], 0, zs[zi]]);
+      while (slots.length < n) {
+        const gi = Math.floor(rng() * grid.length);
+        if (used[gi]) continue;
+        used[gi] = true;
+        slots.push([grid[gi][0], 0, grid[gi][1]]);
       }
 
       for (let s = 0; s < slots.length; s++) {
@@ -182,7 +262,7 @@ function generateLevel(levelId, seed) {
   const level = {
     id: levelId,
     name: 'level_' + levelId,
-    colors: colorPool.slice(0, colorCount).map((_, i) => COLOR_NAMES[i]),
+    colors: COLOR_NAMES.slice(0, colorCount),
     slotCount: 5,
     gridSize: Math.max(5, Math.ceil(maxExtent) * 2),
     boards: boards
@@ -207,10 +287,13 @@ function assignCovering(level, coverRatio, rng) {
     const lower = byLayer[layers[li]];
     for (let i = 0; i < lower.length; i++) {
       const board = lower[i];
+      const rot = (board.rotation[1] || 0) * Math.PI / 180;
+      const cos = Math.cos(rot), sin = Math.sin(rot);
       for (let j = 0; j < board.holes.length; j++) {
         const hole = board.holes[j];
-        const wx = board.position[0] + hole.pos[0];
-        const wz = board.position[2] + hole.pos[2];
+        const lx = hole.pos[0], lz = hole.pos[2];
+        const wx = board.position[0] + lx * cos - lz * sin;
+        const wz = board.position[2] + lx * sin + lz * cos;
         const covers = [];
         for (let ul = li + 1; ul < layers.length; ul++) {
           const upper = byLayer[layers[ul]];
@@ -231,4 +314,4 @@ function assignCovering(level, coverRatio, rng) {
   }
 }
 
-module.exports = { generateLevel, stageOf, distributeColors, boardFootprint };
+module.exports = { generateLevel, stageOf, distributeColors, boardFootprint, prefabHalfExtents, holeGridOf };
