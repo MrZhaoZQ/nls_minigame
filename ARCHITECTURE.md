@@ -71,6 +71,7 @@ minigame/
 ├─ scripts/
 │  ├─ buildLevels.js           # 生成 30 关（生成器+校验器管线，seed 搜索）→ levelData/
 │  ├─ headlessPlaythrough.js   # 无头全量打通验证（模拟贪心玩家）
+│  └─ measureDifficulty.js     # 难度度量（greedy/casual/human 三档策略死亡率，调参校准用）
 │  └─ make_audio.py            # numpy 程序化合成 9 音效 + 1 BGM（统一 22050Hz）
 └─ test/                       # Node 单测（harness 微型断言库；run.js 汇总）
 ```

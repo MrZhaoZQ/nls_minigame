@@ -9,6 +9,9 @@ const COGNITIVE_MIN_ENTROPY = 0.1;
 const COGNITIVE_MIN_STRUCTURE = 1.15;
 const SAME_COLOR_CAP_FROM = 3;
 const SAME_COLOR_MAX_PER_BOARD = 2;
+const EARLY_FAIR_FROM = 3;
+const EARLY_FAIR_UNTIL = 5;
+const SLOT_RELAX_FROM = 6;
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -18,6 +21,18 @@ function mulberry32(seed) {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+function fpOf(bd) {
+  const rad = ((bd.rotation && bd.rotation[1]) || 0) * Math.PI / 180;
+  let w = 3.6, d = 1.2;
+  if (bd.prefab === 'Board_L') {
+    d = 2.4;
+  } else if (bd.prefab === 'Board_Gear') {
+    w = 3.2; d = 3.2;
+  }
+  const cos = Math.abs(Math.cos(rad)), sin = Math.abs(Math.sin(rad));
+  return { hw: (w * cos + d * sin) / 2, hd: (w * sin + d * cos) / 2 };
 }
 
 function colorTotals(level) {
@@ -228,6 +243,22 @@ function validate(level, opts) {
       } else {
         openAtStart = true;
       }
+
+      const rot = ((bd.rotation && bd.rotation[1]) || 0) * Math.PI / 180;
+      const lcos = Math.cos(rot), lsin = Math.sin(rot);
+      const wx = bd.position[0] + h.pos[0] * lcos - h.pos[2] * lsin;
+      const wz = bd.position[2] + h.pos[0] * lsin + h.pos[2] * lcos;
+      for (const uid in boardIds) {
+        const u = boardIds[uid];
+        if (uid === bd.id || u.position[1] <= bd.position[1] + 0.3) continue;
+        const fp = fpOf(u);
+        const dx = Math.abs(wx - u.position[0]);
+        const dz = Math.abs(wz - u.position[2]);
+        if (dx < fp.hw - 0.3 && dz < fp.hd - 0.3 &&
+            (!h.coveredBy || h.coveredBy.indexOf(uid) < 0)) {
+          errors.push(bd.id + '/' + h.id + ' pick-blocked by ' + uid + ' but not coveredBy');
+        }
+      }
     }
 
     for (let a = 0; a < bd.holes.length; a++) {
@@ -257,6 +288,29 @@ function validate(level, opts) {
   }
 
   if (!openAtStart) errors.push('no uncovered screw at start');
+
+  const earlyFrom = o.earlyFairFrom != null ? o.earlyFairFrom : EARLY_FAIR_FROM;
+  const earlyUntil = o.earlyFairUntil != null ? o.earlyFairUntil : EARLY_FAIR_UNTIL;
+  if (level.id >= earlyFrom && level.id <= earlyUntil) {
+    const uc = {};
+    for (let i = 0; i < level.boards.length; i++) {
+      const bd = level.boards[i];
+      for (let j = 0; j < bd.holes.length; j++) {
+        const h = bd.holes[j];
+        if (!h.coveredBy || h.coveredBy.length === 0) {
+          uc[h.color] = (uc[h.color] || 0) + 1;
+        }
+      }
+    }
+    let maxUc = 0;
+    const ukeys = Object.keys(uc);
+    for (let i = 0; i < ukeys.length; i++) {
+      if (uc[ukeys[i]] > maxUc) maxUc = uc[ukeys[i]];
+    }
+    if (maxUc < 3) {
+      errors.push('early level lacks entry triple among unlocked screws');
+    }
+  }
 
   const state = {};
   const ids = Object.keys(coverGraph);
@@ -302,6 +356,16 @@ function validate(level, opts) {
 
   const base = evalCapacity(level.slotCount);
   if (base.ok) return finish(level.slotCount, null);
+
+  const slotRelaxFrom = o.slotRelaxFrom != null ? o.slotRelaxFrom : SLOT_RELAX_FROM;
+  if (level.id < slotRelaxFrom) {
+    return {
+      ok: false,
+      errors: ['unsolvable at base slotCount (early levels must ship without slot relaxation)'],
+      deathRate: base.deathRate,
+      adjustedSlotCount: null
+    };
+  }
 
   const plus = evalCapacity(level.slotCount + 1);
   if (plus.ok) return finish(level.slotCount + 1, 'auto +1 slot');

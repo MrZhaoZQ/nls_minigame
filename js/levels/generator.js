@@ -16,7 +16,7 @@ const STAGES = [
   { max: 15, layers: [3, 3], boards: [5, 7], colors: [4, 5], screws: [27, 34], cover: 0.8 },
   { max: 20, layers: [3, 4], boards: [6, 9], colors: [5, 5], screws: [30, 38], cover: 0.9 },
   { max: 25, layers: [4, 4], boards: [7, 10], colors: [5, 5], screws: [34, 44], cover: 0.92 },
-  { max: 999, layers: [4, 5], boards: [8, 12], colors: [5, 5], screws: [42, 54], cover: 0.85 }
+  { max: 999, layers: [4, 5], boards: [8, 10], colors: [5, 5], screws: [40, 50], cover: 0.85 }
 ];
 
 const COLOR_NAMES = ['red', 'blue', 'yellow', 'green', 'purple', 'orange'];
@@ -24,9 +24,9 @@ const COLOR_NAMES = ['red', 'blue', 'yellow', 'green', 'purple', 'orange'];
 const EARLY = {
   1: { layers: [1, 1], boards: [2, 2], colors: [3, 3], screws: [9, 9], cover: 0 },
   2: { layers: [2, 2], boards: [2, 3], colors: [4, 4], screws: [12, 12], cover: 0.3 },
-  3: { layers: [2, 2], boards: [3, 3], colors: [4, 4], screws: [15, 15], cover: 0.4 },
-  4: { layers: [2, 3], boards: [3, 4], colors: [4, 4], screws: [18, 18], cover: 0.5 },
-  5: { layers: [3, 3], boards: [4, 4], colors: [4, 4], screws: [21, 21], cover: 0.6 }
+  3: { layers: [2, 2], boards: [3, 3], colors: [4, 4], screws: [15, 15], cover: 0.45 },
+  4: { layers: [2, 2], boards: [4, 4], colors: [4, 4], screws: [18, 18], cover: 0.65 },
+  5: { layers: [2, 2], boards: [4, 4], colors: [4, 4], screws: [24, 24], cover: 0.6 }
 };
 
 const PREFABS = ['Board_Single', 'Board_L', 'Board_Gear'];
@@ -77,6 +77,8 @@ function pickRange(rng, range) {
 
 const SAME_COLOR_CAP_FROM = 3;
 const SAME_COLOR_MAX_PER_BOARD = 2;
+const EARLY_FAIR_FROM = 3;
+const EARLY_FAIR_UNTIL = 5;
 
 // cap 契约：调用方须保证 numColors * floor(cap/3)*3 >= total，否则截断后总和不足。
 function distributeColors(total, numColors, cap) {
@@ -218,7 +220,7 @@ function generateLevel(levelId, seed) {
   let colorCount = pickRange(rng, stage.colors);
 
   const shapePool = [];
-  const shapeChance = levelId < 3 ? 0 : (levelId <= 5 ? 0.2 : 0.35);
+  const shapeChance = levelId < 3 ? 0 : (levelId <= 5 ? 0.2 : (levelId <= 25 ? 0.35 : 0.15));
   for (let i = 0; i < boardCount; i++) {
     if (rng() < shapeChance) shapePool.push(PREFABS[1 + Math.floor(rng() * 2)]);
     else shapePool.push('Board_Single');
@@ -388,7 +390,65 @@ function generateLevel(levelId, seed) {
     disperseSameColor(level, rng, SAME_COLOR_MAX_PER_BOARD);
     // 修复失败（罕见贪心死角）不阻断：校验器"同板同色"闸门会拒收该 seed，buildLevels 自动换 seed。
   }
+  if (levelId >= EARLY_FAIR_FROM && levelId <= EARLY_FAIR_UNTIL) {
+    ensureEntryTriple(level);
+  }
   return level;
+}
+
+function countColorOn(board, color) {
+  let n = 0;
+  for (let j = 0; j < board.holes.length; j++) {
+    if (board.holes[j].color === color) n++;
+  }
+  return n;
+}
+
+function ensureEntryTriple(level) {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    const unlocked = [];
+    for (let i = 0; i < level.boards.length; i++) {
+      const b = level.boards[i];
+      for (let j = 0; j < b.holes.length; j++) {
+        if (!b.holes[j].coveredBy) unlocked.push({ b: b, h: b.holes[j] });
+      }
+    }
+    const cnt = {};
+    for (let i = 0; i < unlocked.length; i++) {
+      cnt[unlocked[i].h.color] = (cnt[unlocked[i].h.color] || 0) + 1;
+    }
+    const names = Object.keys(cnt);
+    let ok = false;
+    for (let i = 0; i < names.length; i++) {
+      if (cnt[names[i]] >= 3) ok = true;
+    }
+    if (ok) return true;
+    let done = false;
+    for (let pi = 0; pi < names.length && !done; pi++) {
+      const pc = names[pi];
+      if (cnt[pc] < 2) continue;
+      for (let i = 0; i < level.boards.length && !done; i++) {
+        const b = level.boards[i];
+        for (let j = 0; j < b.holes.length && !done; j++) {
+          const h = b.holes[j];
+          if (!h.coveredBy || h.color !== pc) continue;
+          for (let u = 0; u < unlocked.length && !done; u++) {
+            const ub = unlocked[u].b;
+            const uh = unlocked[u].h;
+            if (uh.color === pc) continue;
+            if (countColorOn(ub, pc) >= SAME_COLOR_MAX_PER_BOARD) continue;
+            if (countColorOn(b, uh.color) >= SAME_COLOR_MAX_PER_BOARD) continue;
+            const tmp = uh.color;
+            uh.color = pc;
+            h.color = tmp;
+            done = true;
+          }
+        }
+      }
+    }
+    if (!done) return false;
+  }
+  return false;
 }
 
 function assignCovering(level, coverRatio, rng) {
