@@ -94,7 +94,8 @@ class ParticleFX {
       const p = this.active[i];
       p.life += dt;
       if (p.life >= p.maxLife) {
-        this.active.splice(i, 1);
+        this.active[i] = this.active[this.active.length - 1];
+        this.active.pop();
         this.pool.push(p);
         continue;
       }

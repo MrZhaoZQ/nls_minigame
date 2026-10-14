@@ -324,8 +324,8 @@ function bootstrap() {
     if (isFrozen()) return;
     if (tutorial.active) {
       tutorial.notifyDrag();
-      if (tutorial.step === 1 && (!hintMarker.target || !game.hintVisibleNow(hintMarker.target))) {
-        const t = game.requestHint();
+      if (tutorial.step === 1) {
+        const t = game.refreshHint(hintMarker.target);
         if (t && t !== hintMarker.target) {
           renderer.highlightScrewId = t.node.id;
           hintMarker.setTarget(t);

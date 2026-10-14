@@ -242,7 +242,7 @@ test('requestHint prefers the most view-stable screw (centered, then higher)', (
   assertEq(hint.boardId, 'bCenter', 'edge screws drift out of view after yaw drag; center wins');
 });
 
-test('hintVisibleNow tracks occlusion for tutorial re-anchor', () => {
+test('refreshHint keeps a visible anchor and re-anchors an occluded one', () => {
   const bus = new EventBus();
   const scene = new SceneGraph();
   const camera = new Camera(375, 667);
@@ -267,8 +267,9 @@ test('hintVisibleNow tracks occlusion for tutorial re-anchor', () => {
   const screws = screwManager.screws;
   const low = screws.find(s => s.boardId === 'b1');
   const up = screws.find(s => s.boardId === 'b2');
-  assertEq(game.hintVisibleNow(up), true, 'upper screw is visible');
-  assertEq(game.hintVisibleNow(low), false, 'screw under a board is not visible');
+  assertEq(game.refreshHint(up), up, 'visible anchor kept as-is (no target churn)');
+  assertEq(game.refreshHint(low).boardId, 'b2', 'occluded anchor re-anchored to a visible screw');
+  assertEq(game.refreshHint(null).boardId, 'b2', 'null anchor picks best visible');
 });
 
 test('requestHint targets camera-visible screw', () => {

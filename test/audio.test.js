@@ -199,17 +199,18 @@ function fakeWa(spec) {
 }
 
 function webMock(wa, created) {
-  return Platform.createMockPlatform({
+  const opts = {
     createWebAudio: () => wa,
-    readFileBuffer: (p, cb) => cb(null, { __id: p, __bgm: p.indexOf('bgm_main') >= 0 }),
-    createAudio: created ? fakeAudioFactory(created) : undefined
-  });
+    readFileBuffer: (p, cb) => cb(null, { __id: p, __bgm: p.indexOf('bgm_main') >= 0 })
+  };
+  if (created) opts.createAudio = fakeAudioFactory(created);
+  return Platform.createMockPlatform(opts);
 }
 
 test('web audio uses zero InnerAudioContext instances and buffers for sfx/bgm', () => {
   const created = [];
   const wa = fakeWa(null);
-  Platform.inject(Object.assign(webMock(wa, created), {}));
+  Platform.inject(webMock(wa, created));
   const am = new AudioManager();
   am.preload();
   assertEq(am._webMode, true, 'web mode on');

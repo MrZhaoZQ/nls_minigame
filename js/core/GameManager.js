@@ -265,11 +265,12 @@ class GameManager {
     return this._bestHintTarget(visible, stamp);
   }
 
-  hintVisibleNow(entry) {
-    if (!entry || this.state !== 'playing') return false;
+  refreshHint(current) {
+    if (this.state !== 'playing') return null;
     const stamp = this.scene.beginFrame();
     const visible = this.raycaster.visibleUnlocked(this.screwManager.screws, this.boards, stamp);
-    return visible.indexOf(entry) >= 0;
+    if (current && visible.indexOf(current) >= 0) return current;
+    return this._bestHintTarget(visible, stamp);
   }
 
   _bestHintTarget(visible, stamp) {

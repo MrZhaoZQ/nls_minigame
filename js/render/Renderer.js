@@ -71,14 +71,9 @@ class Renderer {
     this._drawShadows(ctx, scene, camera, stamp);
 
     const faces = this._facePool;
-    const countRef = { n: 0 };
-    const self = this;
-    const walk = function (node) {
-      if (!node.visible) return;
-      if (node.mesh) countRef.n = self._collectMesh(node, camera, stamp, faces, countRef.n);
-      for (let i = 0; i < node.children.length; i++) walk(node.children[i]);
-    };
-    walk(scene.root);
+    const countRef = this._countRef || (this._countRef = { n: 0 });
+    countRef.n = 0;
+    this._walkNode(scene.root, camera, stamp, faces, countRef);
 
     let drawList = this._drawList;
     if (!drawList) drawList = this._drawList = [];
@@ -102,6 +97,14 @@ class Renderer {
         ctx.stroke();
       }
       if (f.alpha < 1) ctx.globalAlpha = 1;
+    }
+  }
+
+  _walkNode(node, camera, stamp, faces, countRef) {
+    if (!node.visible) return;
+    if (node.mesh) countRef.n = this._collectMesh(node, camera, stamp, faces, countRef.n);
+    for (let i = 0; i < node.children.length; i++) {
+      this._walkNode(node.children[i], camera, stamp, faces, countRef);
     }
   }
 
@@ -203,14 +206,18 @@ class Renderer {
 
   _drawShadows(ctx, scene, camera, stamp) {
     if (this.degraded) return;
-    const boards = [];
-    scene.root.traverse(n => {
-      if (n.userData && n.userData.isBoard && n.visible) boards.push(n);
+    const self = this;
+    const boards = this._shadowBoards || (this._shadowBoards = []);
+    boards.length = 0;
+    const collect = this._shadowCollect || (this._shadowCollect = function (n) {
+      if (n.userData && n.userData.isBoard && n.visible) self._shadowBoards.push(n);
     });
+    scene.root.traverse(collect);
     const groundY = GameConfig.scene.groundY;
     const SW = camera.screenWidth;
     const SH = camera.screenHeight;
-    ctx.fillStyle = 'rgba(30,30,40,' + GameConfig.render.shadowAlpha + ')';
+    ctx.fillStyle = this._shadowFill ||
+      (this._shadowFill = 'rgba(30,30,40,' + GameConfig.render.shadowAlpha + ')');
     for (let i = 0; i < boards.length; i++) {
       const b = boards[i];
       const wp = b.worldPos(stamp);
