@@ -13,6 +13,17 @@ class CollapseManager {
     this.queue = [];
     this.busy = false;
     this.collapsingBoardId = null;
+    this._epoch = 0;
+  }
+
+  // 切关/重启时作废在飞的塌缩链：清空队列并让旧链回调按 epoch 丢弃，
+  // 防止旧关卡 boardId 与新关卡同 id 板串线（提前解锁覆盖/误删撤销记录）。
+  reset() {
+    this._epoch++;
+    this.queue.length = 0;
+    this.busy = false;
+    this.collapsingBoardId = null;
+    if (this.hooks.onQueueChange) this.hooks.onQueueChange(false);
   }
 
   isActive() {
@@ -46,12 +57,14 @@ class CollapseManager {
     const angle = ((cfg.rotMin + Math.random() * (cfg.rotMax - cfg.rotMin)) * Math.PI) / 180;
 
     const self = this;
+    const ep = this._epoch;
 
     const tWarn = this.tweens.tween(cfg.warnTime, {
       onUpdate: (v) => {
         board.alpha = 1 - 0.45 * Math.abs(Math.sin(v * Math.PI * 3));
       },
       onComplete: () => {
+        if (ep !== self._epoch) return;
         if (self.hooks.onWarn) self.hooks.onWarn();
       }
     });
@@ -62,6 +75,7 @@ class CollapseManager {
         board.rotation = Mat3.multiply(Mat3.fromAxisAngle(axis, angle * v), baseRot);
       },
       onComplete: () => {
+        if (ep !== self._epoch) return;
         if (self.hooks.onLanding) self.hooks.onLanding(board.userData.boardId);
       }
     });
@@ -70,6 +84,7 @@ class CollapseManager {
         board.alpha = 1 - v;
       },
       onComplete: () => {
+        if (ep !== self._epoch) return;
         board.alpha = 1;
         board.removeFromParent();
         self.busy = false;
@@ -79,7 +94,9 @@ class CollapseManager {
           self.hooks.onQueueChange(false);
         }
         self.tweens.tween(cfg.queueGap, {
-          onComplete: () => self._next()
+          onComplete: () => {
+            if (ep === self._epoch) self._next();
+          }
         }).start();
       }
     });

@@ -82,9 +82,10 @@ class HelpPanel {
     this._layoutStatic();
   }
 
-  resize(w, h) {
+  resize(w, h, capsule) {
     this.w = w;
     this.h = h;
+    if (capsule) this.capsule = capsule;
     this._layoutStatic();
   }
 
@@ -155,6 +156,10 @@ class HelpPanel {
       this.vel *= Math.pow(0.92, frames);
       this.rev++;
       if (this.scroll === 0 || this.scroll === this.maxScroll) this.vel = 0;
+    } else if (!this.dragging && this.vel !== 0) {
+      // 惯性衰减到阈值以下必须归零，否则 vel!==0 会让主循环误判"动画中"而永久满帧重绘
+      this.vel = 0;
+      this.rev++;
     }
   }
 

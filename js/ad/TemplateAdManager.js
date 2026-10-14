@@ -51,7 +51,7 @@ class TemplateAdManager {
     const self = this;
     if (this.ad.onError) {
       this.ad.onError((err) => {
-        self.events.push({ type: 'error', code: err && err.errCode });
+        self._pushEvent({ type: 'error', code: err && err.errCode });
         self._warn('error', err && err.errCode, err && err.errMsg);
         if (self._isShown()) self._hide();
       });
@@ -68,6 +68,11 @@ class TemplateAdManager {
         self._reposition();
       });
     }
+  }
+
+  _pushEvent(e) {
+    this.events.push(e);
+    if (this.events.length > 64) this.events.splice(0, this.events.length - 64);
   }
 
   isMock() {
@@ -129,7 +134,11 @@ class TemplateAdManager {
       const p = this.ad.show();
       if (p && typeof p.then === 'function') {
         p.then(
-          () => { self._showing = false; },
+          () => {
+            self._showing = false;
+            // show 落定前 surface 已切走（快速暂停/返回）：补一次 hide，防原生横幅残留盖住 UI
+            if (!self.active) self._hide();
+          },
           (e) => {
             self._showing = false;
             self._warn('show rejected', (e && e.errMsg) || e);
@@ -138,7 +147,7 @@ class TemplateAdManager {
       } else {
         this._showing = false;
       }
-      this.events.push({ type: 'show' });
+      this._pushEvent({ type: 'show' });
     } catch (e) {
       this._showing = false;
       this._warn('show threw', e);

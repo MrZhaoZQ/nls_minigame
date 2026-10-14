@@ -143,7 +143,7 @@ const SaveManager = {
       all[levelId] = {
         stars: Math.max(old.stars, rec.stars),
         bestMs: Math.min(old.bestMs || Infinity, rec.costMs),
-        moves: rec.moves
+        moves: Math.min(old.moves == null ? Infinity : old.moves, rec.moves)
       };
     }
     Platform.storage.set(KEYS.results, JSON.stringify(all));

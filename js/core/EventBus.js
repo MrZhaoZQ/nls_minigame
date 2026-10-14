@@ -19,8 +19,10 @@ class EventBus {
   }
 
   emit(event, data) {
-    const list = this._handlers[event];
-    if (!list) return;
+    const handlers = this._handlers[event];
+    if (!handlers) return;
+    // 快照遍历：handler 内 on/off 不会导致本次派发跳过或重复触发
+    const list = handlers.slice();
     for (let i = 0; i < list.length; i++) {
       try {
         list[i](data);

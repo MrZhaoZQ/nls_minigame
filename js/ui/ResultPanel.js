@@ -22,6 +22,7 @@ class ResultPanel {
   setPressed(id) {
     this.pressedId = id;
     this.pressedT = 0.16;
+    this.rev++;
   }
 
   resize(w, h) {
@@ -47,7 +48,7 @@ class ResultPanel {
     if (this.visible && this.animT < 1) this.animT = Math.min(1, this.animT + dt / 0.3);
     if (this.pressedT > 0) {
       this.pressedT -= dt;
-      if (this.pressedT <= 0) this.pressedId = null;
+      if (this.pressedT <= 0) { this.pressedT = 0; this.pressedId = null; this.rev++; }
     }
   }
 
@@ -99,6 +100,7 @@ class ResultPanel {
     this._layout();
     for (let i = 0; i < this.buttons.length; i++) {
       const b = this.buttons[i];
+      if (b.id === 'double' && this.doubled) continue;
       if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) return b.id;
     }
     return null;

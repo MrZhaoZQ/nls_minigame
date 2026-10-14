@@ -57,7 +57,7 @@ class InputManager {
     } else {
       this._tapCandidate = null;
       this._pinchDist = this._currentPinchDist();
-      if (this._moved && this.onDragEnd) this.onDragEnd(0);
+      if (this._moved && this.onDragEnd) this.onDragEnd(0, 0);
       this._moved = false;
       this._lastSingle = null;
     }
@@ -120,6 +120,9 @@ class InputManager {
     if (this.locked) {
       this._tapCandidate = null;
       this._lastSingle = null;
+      this._moved = false;
+      this._lastVx = 0;
+      this._lastVy = 0;
       return;
     }
 

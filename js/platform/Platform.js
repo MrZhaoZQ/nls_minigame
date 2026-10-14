@@ -39,7 +39,15 @@ const Platform = {
   getSystemInfo() {
     if (_mock && _mock.getSystemInfo) return _mock.getSystemInfo();
     if (hasWx()) {
-      const info = wx.getSystemInfoSync();
+      let info;
+      try {
+        info = wx.getSystemInfoSync();
+      } catch (e) {
+        info = null;
+      }
+      if (!info || !info.windowWidth) {
+        return { width: 375, height: 667, pixelRatio: 1, safeArea: null, platform: 'unknown' };
+      }
       return {
         width: info.windowWidth,
         height: info.windowHeight,
@@ -170,7 +178,7 @@ const Platform = {
   vibrateShort() {
     try {
       if (_mock && _mock.vibrateShort) { _mock.vibrateShort(); return; }
-      if (hasWx() && wx.vibrateShort) wx.vibrateShort({ type: 'light' });
+      if (hasWx() && wx.vibrateShort) wx.vibrateShort({ type: 'light', fail() {} });
     } catch (e) {
       return;
     }
@@ -215,7 +223,8 @@ const Platform = {
     }
     if (hasWx() && wx.showShareMenu) {
       try {
-        wx.showShareMenu(opts || { withShareTicket: true, menus: ['shareAppMessage', 'shareTimeline'] });
+        wx.showShareMenu(Object.assign({ fail() {} },
+          opts || { withShareTicket: true, menus: ['shareAppMessage', 'shareTimeline'] }));
       } catch (e) {
         return;
       }

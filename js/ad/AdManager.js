@@ -16,6 +16,7 @@ class AdManager {
     this.levelId = 1;
     this.levelShows = {};
     this.lastGrantTs = 0;
+    this._shownOnce = false;
     this.events = [];
   }
 
@@ -25,6 +26,11 @@ class AdManager {
       this.ad.onClose((res) => this._onClose(res));
       if (this.ad.onError) this.ad.onError((err) => this._onError(err));
     }
+  }
+
+  _pushEvent(e) {
+    this.events.push(e);
+    if (this.events.length > 64) this.events.splice(0, this.events.length - 64);
   }
 
   isMock() {
@@ -40,6 +46,8 @@ class AdManager {
     const cfg = GameConfig.ad;
     this.daily = SaveManager.getDailyAdInfo();
     const now = this.now();
+    // 系统时钟回拨自愈：否则负差值恒小于冷却，广告位永久卡死
+    if (now < this.lastShowTs) this.lastShowTs = now;
     if (now - this.lastShowTs < cfg.cooldownMs) return { ok: false, reason: 'cooldown' };
     if (this.daily.count >= cfg.dailyLimit) return { ok: false, reason: 'dailyLimit' };
     if (placement && placement.indexOf('fail') === 0) {
@@ -51,7 +59,7 @@ class AdManager {
 
   show(placement, cb) {
     const gate = this.canShow(placement);
-    this.events.push({ type: 'request', placement, ok: gate.ok });
+    this._pushEvent({ type: 'request', placement, ok: gate.ok });
     if (!gate.ok) {
       if (cb) cb({ rewarded: false, reason: gate.reason });
       return;
@@ -68,10 +76,12 @@ class AdManager {
     }
 
     this.pending = { placement, cb };
+    this._shownOnce = false;
     const ad = this.ad;
-    ad.show().catch(() => {
-      ad.load().then(() => ad.show()).catch((e) => {
-        this._onError(e);
+    const self = this;
+    ad.show().then(() => { self._shownOnce = true; }).catch(() => {
+      ad.load().then(() => ad.show().then(() => { self._shownOnce = true; })).catch((e) => {
+        self._onError(e);
       });
     });
   }
@@ -82,7 +92,7 @@ class AdManager {
     this.lastGrantTs = now;
     this.daily = SaveManager.recordAdShow();
     this.levelShows[placement] = (this.levelShows[placement] || 0) + 1;
-    this.events.push({ type: 'rewarded', placement });
+    this._pushEvent({ type: 'rewarded', placement });
   }
 
   _onClose(res) {
@@ -98,6 +108,12 @@ class AdManager {
   }
 
   _onError(err) {
+    // 广告已成功拉起后的中途报错（网络抖动等）不清 pending：
+    // 视频仍可能播放完毕走 onClose 结算，提前判死会吞掉用户看完的奖励
+    if (this._shownOnce) {
+      this._pushEvent({ type: 'error-during-show' });
+      return;
+    }
     const p = this.pending;
     this.pending = null;
     if (p && p.cb) p.cb({ rewarded: false, reason: 'error' });

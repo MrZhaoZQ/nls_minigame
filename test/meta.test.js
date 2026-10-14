@@ -35,8 +35,6 @@ test('steps advance drag -> collect -> confirm', () => {
   const t = new Tutorial();
   t.start();
   assertEq(t.step, 0);
-  t.notifyCollected();
-  assertEq(t.step, 0, 'collect ignored in step0');
   t.notifyDrag();
   assertEq(t.step, 1);
   t.notifyDrag();
@@ -48,6 +46,14 @@ test('steps advance drag -> collect -> confirm', () => {
   assertEq(t.hitTest(150, 120), 'ok');
   t.done();
   assertEq(t.active, false);
+});
+
+test('collect during step0 skips straight to confirm (tap-only players)', () => {
+  const t = new Tutorial();
+  t.start();
+  t.notifyCollected();
+  assertEq(t.step, 2, 'never-dragging player must not stay stuck on the swipe bubble');
+  t.done();
 });
 
 section('LevelSelect');

@@ -8,7 +8,6 @@ const GameConfig = require('../config/GameConfig');
 class ScrewRaycaster {
   constructor(camera) {
     this.camera = camera;
-    this.epislon = 0.02;
   }
 
   screwHeadWorld(entry, stamp) {

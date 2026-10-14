@@ -393,3 +393,49 @@ test('board emptied fires collapse hook when not the last board', () => {
   runPick(g);
   assertEq(empties, ['b1'], 'b1 emptied should fire hook');
 });
+
+test('stale unscrew callback cannot pollute a restarted level', () => {
+  const g = makeGame(LEVEL_MATCH);
+  const screw = g.game.screwManager.screws[0];
+  g.game.beginUnscrew(screw);
+  assertEq(g.game.state, 'screwing', 'mid-unscrew lock engaged');
+  g.game.startLevel(LEVEL_MATCH);
+  for (let i = 0; i < 120; i++) g.tweens.update(0.016);
+  assertEq(g.game.slotManager.count(), 0, 'stale callback must not inject a phantom screw');
+  assertEq(g.game.collectedCount, 0, 'stale callback must not bump collectedCount');
+  assertEq(g.game.state, 'playing', 'no stale win/lose transition on the fresh level');
+});
+
+test('collapse chain from a previous level cannot unlock the new level', () => {
+  const data = {
+    id: 7, name: 'cov', colors: ['red', 'blue'], slotCount: 5, gridSize: 5,
+    boards: [
+      { id: 'b1', prefab: 'Board_Single', position: [0, 0, 0], rotation: [0, 0, 0],
+        holes: [
+          { id: 'h1', pos: [0, 0, 0], color: 'red', coveredBy: ['b2'] },
+          { id: 'h2', pos: [0.9, 0, 0], color: 'blue', coveredBy: ['b2'] },
+          { id: 'h3', pos: [-0.9, 0, 0], color: 'blue' }
+        ] },
+      { id: 'b2', prefab: 'Board_Single', position: [0, 1, 0], rotation: [0, 0, 0],
+        holes: [
+          { id: 'h4', pos: [0, 0, 0], color: 'red' },
+          { id: 'h5', pos: [0.9, 0, 0], color: 'red' },
+          { id: 'h6', pos: [-0.9, 0, 0], color: 'red' }
+        ] }
+    ]
+  };
+  const g = makeGame(data);
+  const CollapseManager = require('../js/gameplay/CollapseManager');
+  const cm = new CollapseManager(g.scene, g.tweens, {
+    onBoardGone: (id) => g.game.onCollapseFinished(id)
+  });
+  g.game.collapseMgr = cm;
+  const upper = g.game.boards.find(b => b.id === 'b2');
+  cm.queueCollapse(upper.node);
+  assert(cm.isActive(), 'collapse chain in flight');
+  g.game.startLevel(data);
+  assertEq(cm.isActive(), false, 'restart resets the collapse manager');
+  for (let i = 0; i < 200; i++) g.tweens.update(0.016);
+  const h1 = g.game.screwManager.screws.find(s => s.holeId === 'h1');
+  assertEq(h1.state, 'locked', 'stale onBoardGone must not unlock fresh-level coverage');
+});

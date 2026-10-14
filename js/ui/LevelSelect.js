@@ -29,9 +29,10 @@ class LevelSelect {
     this.rev++;
   }
 
-  resize(w, h) {
+  resize(w, h, capsule) {
     this.w = w;
     this.h = h;
+    if (capsule) this.capsule = capsule;
   }
 
   show(opts) {
@@ -55,12 +56,13 @@ class LevelSelect {
 
   hide() {
     this.visible = false;
+    this.rev++;
   }
 
   update(dt) {
     if (this.pressedT > 0) {
       this.pressedT -= dt;
-      if (this.pressedT <= 0) this.pressedId = null;
+      if (this.pressedT <= 0) { this.pressedT = 0; this.pressedId = null; this.rev++; }
     }
   }
 

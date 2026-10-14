@@ -84,7 +84,12 @@ for (let id = 1; id <= total; id++) {
   while (game.totalRemainingOnBoards() > 0 && safety++ < 2000) {
     if (app.tutorial.active && app.tutorial.step === 2) {
       const tb = app.tutorial.btn;
-      tapAt(tb.x + tb.w / 2, tb.y + tb.h / 2);
+      if (!tb || tb.w <= 0 || tb.x < 0) {
+        // 无画布环境下 draw 从未执行、按钮坐标未初始化：不再依赖 (-999,0尺寸) 的闭区间侥幸命中
+        app.tutorial.done();
+      } else {
+        tapAt(tb.x + tb.w / 2, tb.y + tb.h / 2);
+      }
       stepFrames(2, 20);
     }
     const slots = game.slotManager.slots;

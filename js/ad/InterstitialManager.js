@@ -20,9 +20,14 @@ class InterstitialManager {
     this.ad = Platform.createInterstitialAd(this.unitId);
     if (this.ad && this.ad.onError) {
       this.ad.onError(() => {
-        this.events.push({ type: 'error' });
+        this._pushEvent({ type: 'error' });
       });
     }
+  }
+
+  _pushEvent(e) {
+    this.events.push(e);
+    if (this.events.length > 64) this.events.splice(0, this.events.length - 64);
   }
 
   isMock() {
@@ -54,7 +59,7 @@ class InterstitialManager {
 
   maybeShow(levelId) {
     const gate = this.canShow(levelId);
-    this.events.push({ type: 'request', ok: gate.ok, reason: gate.reason || null });
+    this._pushEvent({ type: 'request', ok: gate.ok, reason: gate.reason || null });
     if (!gate.ok) return gate;
     const self = this;
     const ts = this.now();
@@ -69,13 +74,13 @@ class InterstitialManager {
         this._commit(ts);
       }
     } catch (e) {
-      this.events.push({ type: 'showFail' });
+      this._onShowFail();
     }
     return gate;
   }
 
   _onShowFail() {
-    this.events.push({ type: 'showFail' });
+    this._pushEvent({ type: 'showFail' });
     try {
       const lp = this.ad.load && this.ad.load();
       if (lp && typeof lp.catch === 'function') lp.catch(() => {});
@@ -87,7 +92,7 @@ class InterstitialManager {
     this.winsSinceShow = 0;
     this.shownCount++;
     SaveManager.recordInterShow();
-    this.events.push({ type: 'shown' });
+    this._pushEvent({ type: 'shown' });
   }
 }
 

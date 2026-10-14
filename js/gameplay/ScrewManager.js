@@ -83,14 +83,6 @@ class ScrewManager {
     return this.screws.filter(s => s.state === state);
   }
 
-  allRemovedFromBoards() {
-    for (let i = 0; i < this.screws.length; i++) {
-      const s = this.screws[i];
-      if (s.state === ScrewState.LOCKED || s.state === ScrewState.UNLOCKED ||
-          s.state === ScrewState.SCREWING) return false;
-    }
-    return this.screws.length > 0 || this._seq > 0;
-  }
 }
 
 module.exports = ScrewManager;

@@ -46,13 +46,14 @@ class FailPanel {
     if (this.visible && this.animT < 1) this.animT = Math.min(1, this.animT + dt / 0.3);
     if (this.pressedT > 0) {
       this.pressedT -= dt;
-      if (this.pressedT <= 0) this.pressedId = null;
+      if (this.pressedT <= 0) { this.pressedT = 0; this.pressedId = null; this.rev++; }
     }
   }
 
   setPressed(id) {
     this.pressedId = id;
     this.pressedT = 0.16;
+    this.rev++;
   }
 
   _layout() {

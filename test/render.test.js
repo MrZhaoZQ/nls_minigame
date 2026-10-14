@@ -82,7 +82,7 @@ test('renders board + screws without error', () => {
 
   const ctx = makeCtx();
   const renderer = new Renderer();
-  renderer.render(ctx, scene, cam, {});
+  renderer.render(ctx, scene, cam);
 
   assert(ctx.calls.fill > 8, 'expected several filled faces, got ' + ctx.calls.fill);
   assert(ctx.calls.ellipse >= 1, 'expected shadow ellipse');
@@ -151,7 +151,7 @@ test('fully off-screen boards draw zero faces and zero shadows', () => {
   const cam = new Camera(375, 667);
   cam.updateFrom(0.6, 0.35, 8, [0, 0, 0], null);
   const ctx = makeCtx();
-  new Renderer().render(ctx, scene, cam, {});
+  new Renderer().render(ctx, scene, cam);
   assertEq(ctx.calls.fill, 0, 'off-screen faces must be culled, got ' + ctx.calls.fill);
   assertEq(ctx.calls.ellipse, 0, 'off-screen shadow must be culled');
   Platform.inject(null);
@@ -176,11 +176,11 @@ test('renderer pools face records and reuses fill strings across frames', () => 
   }
 
   const f1 = record();
-  renderer.render(f1.c, scene, cam, {});
+  renderer.render(f1.c, scene, cam);
   const rec0 = renderer._facePool[0];
   const pts0 = rec0.pts;
   const f2 = record();
-  renderer.render(f2.c, scene, cam, {});
+  renderer.render(f2.c, scene, cam);
   assertEq(renderer._facePool[0], rec0, 'face record object reused, not re-allocated');
   assertEq(renderer._facePool[0].pts, pts0, 'pts array reused');
   assertEq(f2.fills.length, f1.fills.length, 'same draws per frame');
@@ -201,13 +201,13 @@ test('degraded mode halves screw meshes and disables shadows', () => {
   const renderer = new Renderer();
 
   const c1 = makeCtx();
-  renderer.render(c1, scene, cam, {});
+  renderer.render(c1, scene, cam);
   assert(c1.calls.ellipse >= 1, 'shadows on in normal mode');
   const fullFills = c1.calls.fill;
 
   renderer.degraded = true;
   const c2 = makeCtx();
-  renderer.render(c2, scene, cam, {});
+  renderer.render(c2, scene, cam);
   assertEq(c2.calls.ellipse, 0, 'shadows disabled when degraded');
   assert(c2.calls.fill < fullFills, 'screw side faces culled when degraded, ' +
     c2.calls.fill + ' vs ' + fullFills);

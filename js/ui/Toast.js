@@ -18,7 +18,10 @@ class Toast {
 
   update(dt) {
     if (this.t >= 0 && this.msg) this.t += dt;
-    if (this.t > this.duration) this.msg = '';
+    if (this.msg && this.t > this.duration) {
+      this.msg = '';
+      this.rev = (this.rev || 0) + 1;
+    }
   }
 
   draw(ctx, w, h) {

@@ -329,6 +329,7 @@ function bootstrap() {
 
   const input = new InputManager();
   input.onDrag = (dx, dy) => {
+    if (!audio.unlocked) audio.unlock();
     if (helpPanel.visible) { helpPanel.onDrag(dy); return; }
     if (levelSelect.visible) { levelSelect.onDrag(dy); return; }
     if (isFrozen()) return;
@@ -441,14 +442,19 @@ function bootstrap() {
           app.bus.emit('UNDO_DENIED', { reason: 'empty' });
           return;
         }
+        // 先扣款后执行：余额可能自面板弹出后变化（如金币撤销走弹窗花费），扣款失败必须拒绝救援
+        if (!SaveManager.spendCoins(GameConfig.economy.rescueCost)) {
+          toast.show('金币不足');
+          return;
+        }
         game.adUndoLeft += 1;
         const r = game.undo();
         if (!r.ok) {
           game.adUndoLeft -= 1;
+          SaveManager.addCoins(GameConfig.economy.rescueCost);
           app.bus.emit('UNDO_DENIED', { reason: r.reason });
           return;
         }
-        SaveManager.spendCoins(GameConfig.economy.rescueCost);
         app.levelStats.rescues++;
         failPanel.hide();
         topBar.setUndoQuota(game.freeUndoLeft + game.adUndoLeft);
@@ -456,6 +462,13 @@ function bootstrap() {
         toast.show('已消耗 ' + GameConfig.economy.rescueCost + ' 金币');
       }
       return;
+    }
+
+    // 模态守卫：结算/失败面板展示期间，面板外点击不再穿透到下层 topBar
+    // （否则会在面板背面开暂停/帮助并误触发不可见按钮）。
+    // 例外：败局保留 topBar 'undo' 救援通道（failPanel 广告位可能无填充，顶栏撤销是兜底）。
+    if (resultPanel.visible || failPanel.visible) {
+      if (!failPanel.visible || topBar.hitTest(x, y) !== 'undo') return;
     }
 
     if (pausePanel.visible) {
@@ -514,13 +527,17 @@ function bootstrap() {
           cancelText: '取消',
           success: (res) => {
             if (!res.confirm) return;
+            if (!SaveManager.spendCoins(eco.undoCost)) {
+              toast.show('金币不足');
+              return;
+            }
             game.adUndoLeft += 1;
             const r = game.undo();
             if (!r.ok) {
               game.adUndoLeft -= 1;
+              SaveManager.addCoins(eco.undoCost);
               return;
             }
-            SaveManager.spendCoins(eco.undoCost);
             app.levelStats.undos++;
             toast.show('已消耗 ' + eco.undoCost + ' 金币');
             topBar.setUndoQuota(game.freeUndoLeft + game.adUndoLeft);
@@ -626,7 +643,11 @@ function bootstrap() {
   });
 
   function reportRank() {
-    const maxCleared = SaveManager.getProgress().unlockedLevel - 1;
+    const total = GameConfig.levels.totalShipped;
+    let maxCleared = SaveManager.getProgress().unlockedLevel - 1;
+    // 打通最终关时 unlockedLevel 停在 total（无下一关可解锁），排行榜需按战绩补正，否则永远少 1
+    if (SaveManager.getResults()[total]) maxCleared = total;
+    if (maxCleared > total) maxCleared = total;
     if (maxCleared <= 0) return;
     Platform.setUserCloudStorage([{
       key: GameConfig.social.rankKey,
@@ -683,6 +704,8 @@ function bootstrap() {
     topBar.setUndoQuota(game.freeUndoLeft + game.adUndoLeft);
   });
 
+  // 声明必须先于 onHide/onShow 注册：两处回调都闭包赋值 lastTs，避免 TDZ 隐患
+  let lastTs = Platform.now();
   Platform.onHide(() => {
     app.hiddenAt = Platform.now();
   });
@@ -707,6 +730,11 @@ function bootstrap() {
       app.pausedReturn = true;
       app.forceRender = true;
     }
+    if (app.hiddenAt && app.levelStartedAt) {
+      // 通关耗时不应包含后台时间：把隐藏时长补回关卡起点
+      const hiddenMs = Platform.now() - app.hiddenAt;
+      if (hiddenMs > 0) app.levelStartedAt += hiddenMs;
+    }
     app.hiddenAt = null;
     lastTs = Platform.now();
     reportRank();
@@ -730,12 +758,11 @@ function bootstrap() {
     topBar.resize(info2.width, info2.height, capsuleRect);
     resultPanel.resize(info2.width, info2.height);
     failPanel.resize(info2.width, info2.height);
-    helpPanel.resize(info2.width, info2.height);
-    levelSelect.resize(info2.width, info2.height);
+    helpPanel.resize(info2.width, info2.height, capsuleRect);
+    levelSelect.resize(info2.width, info2.height, capsuleRect);
     pausePanel.resize(info2.width, info2.height);
   });
 
-  let lastTs = Platform.now();
   app.slowFrames = 0;
   app.degraded = false;
   app.forceRender = true;
@@ -771,6 +798,9 @@ function bootstrap() {
       tutorial.update(dt);
     }
     topBar.allDisabled = tutorial.active;
+    topBar.update(dt);
+    levelSelect.update(dt);
+    pausePanel.update(dt);
     slotUI.update(dt);
     resultPanel.update(dt);
     failPanel.update(dt);
@@ -788,7 +818,7 @@ function bootstrap() {
 
     topBar.hintEnabled = !game.hintUsed;
     if (game.state === 'playing' && !game.hintUsed && !app.stuckHinted &&
-        !tutorial.active && !isFrozen()) {
+        !tutorial.active && !app.pausedReturn && !isFrozen()) {
       if (Platform.now() - app.lastProgressAt > 60000) {
         app.stuckHinted = true;
         toast.show('卡住了？试试上方的提示按钮');
@@ -822,7 +852,7 @@ function bootstrap() {
       ctx.fillStyle = app.bgGradient || GameConfig.scene.bgTop;
       ctx.fillRect(0, 0, w, h);
 
-      renderer.render(ctx, scene, camera, {});
+      renderer.render(ctx, scene, camera);
       particles.draw(ctx);
       slotUI.draw(ctx);
       topBar.draw(ctx);

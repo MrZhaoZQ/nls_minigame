@@ -379,3 +379,54 @@ test('cold start calibrates pixelRatio from factory canvas when systemInfo lies'
   delete global.wx;
   delete require.cache[require.resolve('../js/main')];
 });
+
+test('modal panels swallow stray top-bar taps while visible', () => {
+  const { app, mock } = freshBootstrap({ unlocked: 3 });
+  app.startLevelById(2);
+  const fire = (x, y) => {
+    mock.touchHandlers.start.forEach(h => h({ touches: [{ identifier: 0, clientX: x, clientY: y }], changedTouches: [{ identifier: 0, clientX: x, clientY: y }] }));
+    mock.touchHandlers.end.forEach(h => h({ touches: [], changedTouches: [{ identifier: 0, clientX: x, clientY: y }] }));
+  };
+  const pauseBtn = app.topBar.buttons.find(b => b.id === 'pause');
+  const helpBtn = app.topBar.buttons.find(b => b.id === 'help');
+  app.resultPanel.show(10, null);
+  fire(pauseBtn.x, pauseBtn.y);
+  assertEq(app.pausePanel.visible, false, 'win modal must not leak taps into the hidden top bar');
+  app.resultPanel.hide();
+  app.failPanel.show({});
+  fire(helpBtn.x, helpBtn.y);
+  assertEq(app.helpPanel.visible, false, 'fail modal blocks top-bar help');
+  fire(pauseBtn.x, pauseBtn.y);
+  assertEq(app.pausePanel.visible, false, 'fail modal blocks top-bar pause');
+  app.failPanel.hide();
+  Platform.inject(null);
+  delete require.cache[require.resolve('../js/main')];
+});
+
+test('rank score counts the final level with no off-by-one', () => {
+  const { app, mock } = freshBootstrap({ unlocked: 30 });
+  const SaveManager = require('../js/core/SaveManager');
+  SaveManager.recordResult(30, { stars: 3, costMs: 1000, moves: 10 });
+  mock.cloudStorage = [];
+  app.reportRank();
+  const sent = mock.cloudStorage && mock.cloudStorage[0];
+  assert(sent, 'rank payload sent');
+  const v = JSON.parse(sent[0].value);
+  assertEq(v.wxgame.score, 30, 'final cleared level counted (was 29)');
+  Platform.inject(null);
+  delete require.cache[require.resolve('../js/main')];
+});
+
+test('tick drives topBar/levelSelect/pausePanel pressed decay', () => {
+  const { app, frames } = freshBootstrap({ unlocked: 3 });
+  const step = () => { const cb = frames.shift(); if (cb) cb(0); };
+  app.topBar.setPressed('pause');
+  app.levelSelect.setPressed('l1');
+  app.pausePanel.setPressed('resume');
+  for (let i = 0; i < 15; i++) step();
+  assertEq(app.topBar.pressedId, null, 'topBar.update wired into tick');
+  assertEq(app.levelSelect.pressedId, null, 'levelSelect.update wired into tick');
+  assertEq(app.pausePanel.pressedId, null, 'pausePanel.update wired into tick');
+  Platform.inject(null);
+  delete require.cache[require.resolve('../js/main')];
+});

@@ -32,10 +32,17 @@ class ShareManager {
     this.levelShows = {};
   }
 
+  _pushEvent(e) {
+    this.events.push(e);
+    if (this.events.length > 64) this.events.splice(0, this.events.length - 64);
+  }
+
   canShow(placement) {
     const cfg = GameConfig.share;
     this.daily = SaveManager.getDailyShareInfo();
     const now = this.now();
+    // 系统时钟回拨自愈，避免负差值把分享救援永久卡在冷却
+    if (now < this.lastShareTs) this.lastShareTs = now;
     if (now - this.lastShareTs < cfg.cooldownMs) return { ok: false, reason: 'cooldown' };
     if (this.daily.count >= cfg.dailyLimit) return { ok: false, reason: 'dailyLimit' };
     if (placement && placement.indexOf('fail') === 0) {
@@ -48,7 +55,7 @@ class ShareManager {
 
   show(placement, cb) {
     const gate = this.canShow(placement);
-    this.events.push({ type: 'request', placement, ok: gate.ok });
+    this._pushEvent({ type: 'request', placement, ok: gate.ok });
     if (!gate.ok) {
       if (cb) cb({ rewarded: false, reason: gate.reason });
       return;
@@ -74,7 +81,7 @@ class ShareManager {
     this.lastShareTs = this.now();
     this.daily = SaveManager.recordShare();
     this.levelShows[placement] = (this.levelShows[placement] || 0) + 1;
-    this.events.push({ type: 'rewarded', placement, via: 'share' });
+    this._pushEvent({ type: 'rewarded', placement, via: 'share' });
   }
 }
 

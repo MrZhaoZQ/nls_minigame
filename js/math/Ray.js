@@ -5,6 +5,7 @@ const Vec3 = require('./Vec3');
 const EPS = 1e-8;
 
 function intersectOBB(origin, dir, obb) {
+  if (!dir || (dir[0] === 0 && dir[1] === 0 && dir[2] === 0)) return null;
   const d = Vec3.sub(obb.center, origin);
   let tmin = -Infinity, tmax = Infinity;
   for (let i = 0; i < 3; i++) {

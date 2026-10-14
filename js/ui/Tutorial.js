@@ -23,7 +23,13 @@ class Tutorial {
   }
 
   notifyCollected() {
-    if (this.active && this.step === 1) { this.step = 2; this.t = 0; this.rev = (this.rev || 0) + 1; }
+    // step 0 也允许推进：从不拖拽、只轻点的玩家收集到螺丝后直接进第 3 步，
+    // 避免「滑动教学」气泡卡死整关（step0 只能由拖拽推进）
+    if (this.active && (this.step === 0 || this.step === 1)) {
+      this.step = 2;
+      this.t = 0;
+      this.rev = (this.rev || 0) + 1;
+    }
   }
 
   done() {

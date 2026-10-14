@@ -17,6 +17,7 @@ class PausePanel {
   setPressed(id) {
     this.pressedId = id;
     this.pressedT = 0.16;
+    this.rev++;
   }
 
   resize(w, h) {
@@ -39,7 +40,7 @@ class PausePanel {
   update(dt) {
     if (this.pressedT > 0) {
       this.pressedT -= dt;
-      if (this.pressedT <= 0) this.pressedId = null;
+      if (this.pressedT <= 0) { this.pressedT = 0; this.pressedId = null; this.rev++; }
     }
   }
 

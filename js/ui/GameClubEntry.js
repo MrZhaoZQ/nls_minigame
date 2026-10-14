@@ -77,10 +77,15 @@ class GameClubEntry {
   }
 
   destroy() {
-    if (this.available && this.button.destroy) this.button.destroy();
-    this.button = null;
+    const btn = this.button;
+    // 置 false（而非 null）作为终态：_ensure 的 `!== null` 守卫会阻止销毁后再创建；
+    // 且即使此前 show/hide 抛错把 available 置 false，也要无条件尝试销毁原生按钮防泄漏
+    this.button = false;
     this.available = false;
     this.shown = false;
+    if (btn && btn.destroy) {
+      try { btn.destroy(); } catch (e) {}
+    }
   }
 }
 

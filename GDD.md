@@ -435,7 +435,7 @@ module.exports = {
 |---|---|
 | 产出 | 通关 = 本关收集数 ×10；结算「翻倍」再发等额；均经 `SaveManager.addCoins`（选关页每日领金币已下线） |
 | 提示 | 30 金币（`hintCost`）；金币足够时优先于奖励通道 |
-| 撤销 | 20 金币（`undoCost`），配额耗尽后可购；金币也不足 → 激励位 `undo` 兜底（撤销按钮因此不再置灰，仅新手引导禁用） |
+| 撤销 | 20 金币（`undoCost`），配额耗尽后可购；金币也不足 → 激励位 `undo` 兜底（撤销按钮因此不再置灰，仅新手引导禁用）。金币路径**先扣款后执行、失败即退款**；结算/失败面板为模态：面板外点击不穿透 topBar（败局保留顶栏 undo 救援通道） |
 | 失败救援 | 50 金币（`rescueCost`）：「花 50 金币 撤回一步」，仅余额足够时出现在失败面板 |
 | 确认 | `wx.showModal` 二选一弹窗（确定/取消），取消零消耗 |
 | 展示 | 选关页头部「我的金币 N」；结算面板「金币 +N · 余额 N」 |
@@ -486,7 +486,7 @@ module.exports = {
 
 | 模块 | 职责 | 关键接口 |
 |---|---|---|
-| `GameManager` | 对局状态机、收集/三消/胜负流转、撤销、提示选取（屏幕居中/高层优先的可见度评分）、清槽 | `startLevel` `handleTap` `undo` `requestHint` `refreshHint` `clearAnyScrews` |
+| `GameManager` | 对局状态机、收集/三消/胜负流转、撤销、提示选取（屏幕居中/高层优先的可见度评分）、清槽；**跨关代次隔离**（`_epoch`：切关后旧拧出/胜利延迟回调作废，配合 `CollapseManager.reset()` 防旧塌缩链按 boardId 串线新关） | `startLevel` `handleTap` `undo` `requestHint` `refreshHint` `clearAnyScrews` |
 | `LevelLoader` | 数据 → 场景树 + 覆盖表 + 取景参数 | `load(data, scene, screwManager)` |
 | `ScrewManager` | 螺丝四态状态机 + 拧出补间 | `create` `setLocked` `unscrew` |
 | `SlotManager` | 槽位数组（容量 ≤8）与三消查询 | `add` `findMatches` `removeMatch` `nearFull` `isDeadEnd` |

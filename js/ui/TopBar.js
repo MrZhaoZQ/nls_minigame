@@ -71,7 +71,7 @@ class TopBar {
   update(dt) {
     if (this.pressedT > 0) {
       this.pressedT -= dt;
-      if (this.pressedT <= 0) this.pressedId = null;
+      if (this.pressedT <= 0) { this.pressedT = 0; this.pressedId = null; this.rev++; }
     }
   }
 

@@ -10,7 +10,8 @@ class SlotManager {
   }
 
   setCapacity(n) {
-    this.capacity = Math.min(n, GameConfig.slot.maxCount);
+    // NaN|0 → 0 → 钳到 1，避免 NaN 容量导致 isFull() 永假（永远无法判负）或负数秒败
+    this.capacity = Math.max(1, Math.min(n | 0, GameConfig.slot.maxCount));
   }
 
   isFull() {

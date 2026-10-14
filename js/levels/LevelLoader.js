@@ -105,7 +105,7 @@ class LevelLoader {
         half[1] * scale,
         (half[0] * s + half[2] * c) * scale
       ];
-      node.computeWorld(999999);
+      node.computeWorld('framing');
       const wp = node._worldPos;
       for (let k = 0; k < 3; k++) {
         const extent = ext[k];

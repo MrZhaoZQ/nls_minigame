@@ -36,6 +36,7 @@ class GameManager {
     this.adUndoLeft = 0;
     this.hintUsed = false;
     this.collectedCount = 0;
+    this._epoch = 0;
     this.extraCapacity = 0;
     this.collapseMgr = null;
     this.isCollapsePending = function () {
@@ -49,6 +50,10 @@ class GameManager {
 
   startLevel(levelData) {
     this.currentLevel = levelData;
+    // 代次隔离：旧关卡在飞的 tween（拧出动画/塌缩链/胜利延迟）回调一律作废，
+    // 防止分享深链暖启动等绕过 input 锁的路径把幻影螺丝/胜局记录/覆盖解锁带进新关卡。
+    this._epoch = (this._epoch || 0) + 1;
+    if (this.collapseMgr && this.collapseMgr.reset) this.collapseMgr.reset();
 
     const toRemove = [];
     this.scene.root.traverse(n => {
@@ -114,7 +119,9 @@ class GameManager {
     if (this.input) this.input.setLocked(true);
 
     const board = this.boardById[entry.boardId];
+    const epoch = this._epoch || 0;
     this.screwManager.unscrew(entry, () => {
+      if (epoch !== this._epoch) return;
       board.remaining--;
       this.bus.emit(Events.SCREW_COLLECTED, {
         color: entry.color,
@@ -173,8 +180,10 @@ class GameManager {
     if (this.totalRemainingOnBoards() === 0) {
       this.state = 'win_pending';
       this.releaseInput();
+      const winEpoch = this._epoch || 0;
       this.tweens.tween(1.4, {
         onComplete: () => {
+          if (winEpoch !== this._epoch) return;
           this.state = 'win';
           this.bus.emit(Events.LEVEL_WIN, { level: this.currentLevel ? this.currentLevel.id : 0 });
         }

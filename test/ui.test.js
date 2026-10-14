@@ -267,3 +267,33 @@ test('slot UI clears on LEVEL_LOADED (retry)', () => {
   assertEq(slot.warning, false);
   assertEq(slot.flights.length, 0);
 });
+
+section('Thermal & dirty-frame hygiene');
+
+test('help panel inertia velocity zeroes out below threshold', () => {
+  const hp = new HelpPanel(375, 667, { top: 26, height: 32, bottom: 58 });
+  hp.show();
+  hp.animT = 1;
+  hp.vel = 0.15;
+  hp.update(0.016);
+  assertEq(hp.vel, 0, 'residual velocity must not pin the main loop at 60fps');
+});
+
+test('toast expiry bumps rev so the vanish frame repaints', () => {
+  const Toast = require('../js/ui/Toast');
+  const t = new Toast();
+  t.show('hi');
+  const before = t.rev;
+  t.update(2.0);
+  assertEq(t.msg, '', 'expired');
+  assert(t.rev > before, 'expiry must mark dirty to clear the ghost');
+});
+
+test('topbar pressed state decays via update', () => {
+  const tb = new TopBar(new EventBus(), 375, 667, { top: 26, height: 32, bottom: 58, left: 280, right: 368, width: 88 });
+  tb.setPressed('pause');
+  assert(tb.pressedT > 0);
+  for (let i = 0; i < 20; i++) tb.update(0.016);
+  assertEq(tb.pressedT, 0, 'pressedT must decay to exactly 0');
+  assertEq(tb.pressedId, null, 'pressed visual state cleared');
+});

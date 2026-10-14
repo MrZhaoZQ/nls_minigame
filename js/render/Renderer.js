@@ -65,7 +65,7 @@ class Renderer {
     this.degraded = false;
   }
 
-  render(ctx, scene, camera, opts) {
+  render(ctx, scene, camera) {
     const stamp = scene.beginFrame();
 
     this._drawShadows(ctx, scene, camera, stamp);

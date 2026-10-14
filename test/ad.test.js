@@ -423,3 +423,26 @@ test('pending show is not re-triggered by onLoad (no double show)', () => {
   assertEq(ad.shown, 2, 're-activation after hide shows again');
   Platform.inject(null);
 });
+
+test('error during a playing rewarded video does not steal the pending reward', () => {
+  let closeCb = null;
+  let errCb = null;
+  const fake = {
+    onClose(cb) { closeCb = cb; },
+    onError(cb) { errCb = cb; },
+    load() { return Promise.resolve(); },
+    show() { return Promise.resolve(); }
+  };
+  Platform.inject(Platform.createMockPlatform({ createRewardedVideoAd: () => fake }));
+  const mgr = new AdManager({ unitId: 'adunit-x', now: () => 1000000 });
+  mgr.init();
+  let result = null;
+  mgr.show('hint', (r) => { result = r; });
+  mgr._shownOnce = true;
+  errCb({ errCode: -1 });
+  assert(mgr.pending, 'pending kept: the video may still finish after a transient error');
+  assertEq(result, null, 'no premature error callback while playing');
+  closeCb({ isEnded: true });
+  assertEq(result && result.rewarded, true, 'reward settled normally by onClose');
+  Platform.inject(null);
+});
