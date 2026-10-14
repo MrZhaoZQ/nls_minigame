@@ -16,11 +16,9 @@ const GameConfig = {
         interUnitId: 'adunit-d11de76248f20c6a',
         interCooldownMs: 90000, interDailyLimit: 8, interProtectedLevels: 1,
         interWinGap: 2,
-        templateUnitIds: {
-          levelSelect: 'adunit-f886986b0c0413d5',
-          pause: 'adunit-7f7b78cfd368c529',
-          result: 'adunit-3ba905bad18a1e03'
-        },
+        // 三屏（选关/暂停/结算）共用**单个** CustomAd 实例：wx.createCustomAd 每建一个对象，
+        // 基础库都会在其上挂 LifeCycle:Show 等内部监听；三个独立单位会在首次结算/暂停时把监听数推过 30 触发泄漏告警。
+        templateUnitId: 'adunit-f886986b0c0413d5',
         templateAdIntervals: 30,
         templateMargin: 0, templateRatio: [20, 7] },
   share: {
@@ -33,7 +31,8 @@ const GameConfig = {
   levels: { totalShipped: 30, maxUndoOps: 30 },
   render: { fov: 45, near: 0.1, far: 50,
             lightDir: [0.5, 1, 0.35], ambient: 0.45,
-            shadowAlpha: 0.18, maxParticles: 300, dpr: 1 },
+            shadowAlpha: 0.18, maxParticles: 300,
+            dprCap: 3, dprCapDegraded: 2 },
   board: { width: 3.6, depth: 1.2, thickness: 0.22,
            sizeL: { w: 3.6, d: 1.2, h: 1.2 },
            gearRadius: 1.6, gearSegments: 12 },

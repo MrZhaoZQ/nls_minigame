@@ -7,6 +7,9 @@ const SFX_LIST = [
   'sfx_collapse', 'sfx_warn', 'sfx_win', 'sfx_lose'
 ];
 
+const BGM_ID = 'bgm_main';
+const WEB_LIVE_MAX = 12;
+
 class AudioManager {
   constructor() {
     this.pool = {};
@@ -15,19 +18,102 @@ class AudioManager {
     this.bgmOn = false;
     this.bgm = null;
     this._bgmAttempts = 0;
+    this._bgmDead = false;
     this._failed = {};
+    this._wa = null;
+    this._webMode = false;
+    this._webBgmFailed = false;
+    this._buffers = {};
+    this._webFailed = {};
+    this._liveCount = 0;
+    this.bgmBuffer = null;
+    this.bgmSource = null;
+  }
+
+  _srcPathOf(id) {
+    return id === BGM_ID ? 'audio/bgm_main.wav' : 'audio/' + id + '.wav';
   }
 
   preload() {
-    for (let i = 0; i < SFX_LIST.length; i++) {
-      const id = SFX_LIST[i];
-      const ctx = Platform.createAudio('audio/' + id + '.wav');
-      if (ctx) this.pool[id] = ctx;
+    const wa = Platform.createWebAudio ? Platform.createWebAudio() : null;
+    if (wa && typeof wa.createBufferSource === 'function' &&
+        typeof wa.decodeAudioData === 'function') {
+      this._wa = wa;
+      this._webMode = true;
+      this._preloadWeb();
+      return;
     }
     this._initBgm();
   }
 
+  _preloadWeb() {
+    const all = [BGM_ID].concat(SFX_LIST);
+    let i = 0;
+    const next = () => {
+      if (i >= all.length) return;
+      const id = all[i++];
+      this._decodeWeb(id, next);
+    };
+    next();
+  }
+
+  _decodeWeb(id, done) {
+    const wa = this._wa;
+    let settled = false;
+    const succeed = (audioBuf) => {
+      if (settled) return;
+      settled = true;
+      this._onDecoded(id, audioBuf);
+      done();
+    };
+    const fail = () => {
+      if (settled) return;
+      settled = true;
+      this._onDecodeFail(id);
+      done();
+    };
+    Platform.readFileBuffer(this._srcPathOf(id), (err, data) => {
+      if (err || !data) { fail(); return; }
+      try {
+        const p = wa.decodeAudioData(data, succeed, fail);
+        if (p && typeof p.then === 'function') {
+          p.then((ab) => succeed(ab), () => fail());
+        }
+      } catch (e) {
+        fail();
+      }
+    });
+  }
+
+  _onDecoded(id, audioBuf) {
+    if (id === BGM_ID) {
+      this.bgmBuffer = audioBuf;
+      if (this.bgmOn && !this.muted && !this.bgmSource) this._playBgmWeb();
+    } else {
+      this._buffers[id] = audioBuf;
+    }
+  }
+
+  _onDecodeFail(id) {
+    if (id === BGM_ID) {
+      this._webBgmFailed = true;
+      this._initBgm();
+    } else {
+      this._webFailed[id] = true;
+    }
+  }
+
+  _ensureSfx(id) {
+    let ctx = this.pool[id];
+    if (ctx || this._failed[id]) return ctx || null;
+    ctx = Platform.createAudio('audio/' + id + '.wav');
+    if (!ctx) { this._failed[id] = true; return null; }
+    this.pool[id] = ctx;
+    return ctx;
+  }
+
   _initBgm() {
+    if (this._bgmDead) return;
     const bgm = Platform.createAudio('audio/bgm_main.wav');
     if (!bgm) return;
     bgm.loop = true;
@@ -42,8 +128,13 @@ class AudioManager {
       bgm.onError(() => {
         if (this.bgm !== bgm || !this.bgmOn) return;
         this._bgmAttempts++;
-        if (this._bgmAttempts >= 3) { this.bgmOn = false; return; }
+        if (this._bgmAttempts >= 3) {
+          this.bgmOn = false;
+          this._bgmDead = true;
+          return;
+        }
         if (bgm.destroy) { try { bgm.destroy(); } catch (e) {} }
+        this.bgm = null;
         this._initBgm();
         if (this.bgm) this._safePlay(this.bgm);
       });
@@ -57,20 +148,82 @@ class AudioManager {
     } catch (e) {}
   }
 
-  ensureBgm() {
-    if (this.bgmOn && !this.muted && this.bgm) this._safePlay(this.bgm);
+  _playWeb(id, opts) {
+    const buf = this._buffers[id];
+    if (!buf || this._webFailed[id]) return false;
+    if (this._liveCount >= WEB_LIVE_MAX) return true;
+    const self = this;
+    let counted = false;
+    try {
+      const src = this._wa.createBufferSource();
+      src.buffer = buf;
+      this._liveCount++;
+      counted = true;
+      const fin = () => { self._liveCount--; };
+      if ('onended' in src) src.onended = fin;
+      else if (src.addEventListener) src.addEventListener('ended', fin);
+      if (this._wa.createGain) {
+        const gain = this._wa.createGain();
+        gain.gain.value = (opts && opts.volume != null) ? opts.volume : 1;
+        src.connect(gain);
+        gain.connect(this._wa.destination);
+      } else {
+        src.connect(this._wa.destination);
+      }
+      src.start(0);
+      return true;
+    } catch (e) {
+      if (counted) this._liveCount--;
+      return false;
+    }
   }
 
-  unlock() {
-    if (this.unlocked) return;
-    this.unlocked = true;
-    this.playBgm();
+  _playBgmWeb() {
+    if (!this.bgmBuffer || this.bgmSource) return;
+    const self = this;
+    try {
+      const src = this._wa.createBufferSource();
+      src.buffer = this.bgmBuffer;
+      src.loop = true;
+      if ('onended' in src) {
+        src.onended = function () {
+          if (self.bgmSource === src) self.bgmSource = null;
+          if (src._gain) { try { src._gain.disconnect(); } catch (e) {} src._gain = null; }
+        };
+      }
+      if (this._wa.createGain) {
+        src._gain = this._wa.createGain();
+        src._gain.gain.value = 0.35;
+        src.connect(src._gain);
+        src._gain.connect(this._wa.destination);
+      } else {
+        src.connect(this._wa.destination);
+      }
+      src.start(0);
+      this.bgmSource = src;
+    } catch (e) {
+      this.bgmBuffer = null;
+      this._webBgmFailed = true;
+      this._initBgm();
+      if (this.bgm && this.bgmOn) this._safePlay(this.bgm);
+    }
+  }
+
+  _stopBgmWeb() {
+    const src = this.bgmSource;
+    if (!src) return;
+    this.bgmSource = null;
+    try {
+      if (src.onended) src.onended();
+      src.stop(0);
+    } catch (e) {}
   }
 
   play(id, opts) {
     if (!this.unlocked || this.muted) return;
-    const ctx = this.pool[id];
-    if (!ctx || this._failed[id]) return;
+    if (this._webMode && this._playWeb(id, opts)) return;
+    const ctx = this._ensureSfx(id);
+    if (!ctx) return;
     try {
       if (opts && opts.volume != null) ctx.volume = opts.volume;
       if (ctx.stop) ctx.stop();
@@ -88,18 +241,50 @@ class AudioManager {
     else this.play('sfx_match');
   }
 
+  unlock() {
+    if (this.unlocked) return;
+    this.unlocked = true;
+    if (this._webMode && this._wa && this._wa.resume) {
+      try { this._wa.resume(); } catch (e) {}
+    }
+    this.playBgm();
+  }
+
   playBgm() {
-    if (this.bgmOn || this.muted || !this.bgm) return;
+    if (this.bgmOn || this.muted || this._bgmDead) return;
+    if (this._webMode && !this._webBgmFailed) {
+      this.bgmOn = true;
+      if (this.bgmBuffer) this._playBgmWeb();
+      return;
+    }
+    if (!this.bgm) return;
     this.bgmOn = true;
-    this._bgmAttempts = 0;
     this._safePlay(this.bgm);
   }
 
   stopBgm() {
     this.bgmOn = false;
+    if (this.bgmSource) this._stopBgmWeb();
     if (this.bgm && this.bgm.pause) {
-      try { this.bgm.pause(); } catch (e) { return; }
+      try { this.bgm.pause(); } catch (e) {}
     }
+  }
+
+  ensureBgm() {
+    if (!this.bgmOn || this.muted) return;
+    if (this._webMode && !this._webBgmFailed) {
+      if (this.bgmBuffer && !this.bgmSource) this._playBgmWeb();
+      return;
+    }
+    if (!this._bgmDead && this.bgm) this._safePlay(this.bgm);
+  }
+
+  webResume() {
+    if (!this._webMode || !this._wa) return;
+    try {
+      if (this._wa.resume) this._wa.resume();
+    } catch (e) {}
+    this.ensureBgm();
   }
 
   setMuted(m) {

@@ -111,3 +111,30 @@ test('setUserCloudStorage sends KVDataList array to wx', () => {
   assertEq(captured, null, 'non-array payload rejected');
   delete global.wx;
 });
+
+test('Platform.onShow/onHide coalesce to a single wx subscription', () => {
+  Platform.inject(null);
+  assertEq(Platform._lifecycle.bound, false, 'unbound before first subscribe');
+  const wxShow = [];
+  const wxHide = [];
+  global.wx = {
+    onShow(cb) { wxShow.push(cb); },
+    onHide(cb) { wxHide.push(cb); }
+  };
+  const got = { a: [], b: [], c: [] };
+  Platform.onShow(() => got.a.push(1));
+  Platform.onShow(() => got.b.push(1));
+  Platform.onHide(() => got.c.push(1));
+  Platform.onHide(() => got.c.push(2));
+  assertEq(wxShow.length, 1, 'N subscribers still register wx.onShow once');
+  assertEq(wxHide.length, 1, 'N subscribers still register wx.onHide once');
+  wxShow[0]({ scene: 1001 });
+  wxHide[0]();
+  assertEq(got.a.join(), '1', 'show dispatches to first subscriber');
+  assertEq(got.b.join(), '1', 'show dispatches to second subscriber');
+  assertEq(got.c.join(), '1,2', 'hide dispatches to both subscribers');
+  delete global.wx;
+  Platform._lifecycle.bound = false;
+  Platform._lifecycle.showCbs.length = 0;
+  Platform._lifecycle.hideCbs.length = 0;
+});

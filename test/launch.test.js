@@ -248,6 +248,79 @@ test('dismiss gesture does not pass through to gameplay', () => {
   delete require.cache[require.resolve('../js/main')];
 });
 
+test('pulse-only animation renders every other frame', () => {
+  const { app, frames } = freshBootstrap({ unlocked: 3 });
+  app.ctx = stubCtx();
+  app.forceRender = true;
+  let renders = 0;
+  const orig = app.renderer.render.bind(app.renderer);
+  app.renderer.render = (ctx, sc, cam, o) => { renders++; return orig(ctx, sc, cam, o); };
+  const step = () => { const cb = frames.shift(); if (cb) cb(0); };
+  step();
+  assertEq(renders, 1, 'forced frame renders');
+  app.tutorial.active = true;
+  app.tutorial.step = 0;
+  step();
+  assertEq(renders, 2, 'first pulse frame renders');
+  step();
+  assertEq(renders, 2, 'pulse-only skips every other frame (30fps highlight)');
+  step();
+  assertEq(renders, 3, 'pulse resumes on the next parity');
+  app.tutorial.active = false;
+  step();
+  step();
+  assertEq(renders, 3, 'idle stops rendering entirely');
+  Platform.inject(null);
+  delete require.cache[require.resolve('../js/main')];
+});
+
+test('canvas keeps native DPR for clarity, caps only extreme ratios', () => {
+  const fakeCanvas = { width: 0, height: 0, getContext() { return stubCtx(); } };
+  const storage = {
+    screwmaster_tutorial: '1',
+    screwmaster_progress: JSON.stringify({ unlockedLevel: 2 })
+  };
+  const frames = [];
+  const mock = Platform.createMockPlatform({
+    getSystemInfo: () => ({
+      width: 375, height: 667, pixelRatio: 2, safeArea: null, platform: 'android'
+    }),
+    createCanvas: () => fakeCanvas,
+    raf: (cb) => { frames.push(cb); return frames.length; },
+    now: () => 0,
+    getLaunchOptions: () => ({}),
+    storage
+  });
+  Platform.inject(mock);
+  delete require.cache[require.resolve('../js/main')];
+  const bootstrap = require('../js/main');
+  const app = bootstrap();
+  assertEq(app.renderScale, 2, 'pixelRatio 2 must stay native (clarity first)');
+  assertEq(fakeCanvas.width, 750, 'canvas px = logical * scale');
+  assertEq(fakeCanvas.height, 1334);
+  Platform.inject(null);
+  delete require.cache[require.resolve('../js/main')];
+  const fakeCanvas2 = { width: 0, height: 0, getContext() { return stubCtx(); } };
+  const mock2 = Platform.createMockPlatform({
+    getSystemInfo: () => ({
+      width: 375, height: 667, pixelRatio: 4, safeArea: null, platform: 'android'
+    }),
+    createCanvas: () => fakeCanvas2,
+    raf: (cb) => { frames.push(cb); return frames.length; },
+    now: () => 0,
+    getLaunchOptions: () => ({}),
+    storage
+  });
+  Platform.inject(mock2);
+  delete require.cache[require.resolve('../js/main')];
+  const bootstrap2 = require('../js/main');
+  const app2 = bootstrap2();
+  assertEq(app2.renderScale, 3, 'extreme DPR 4 capped to 3');
+  assertEq(fakeCanvas2.width, 1125);
+  Platform.inject(null);
+  delete require.cache[require.resolve('../js/main')];
+});
+
 test('scene transitions clear stale resume overlay', () => {
   const { app, mock } = freshBootstrap({ unlocked: 3 });
   app.startLevelById(1);

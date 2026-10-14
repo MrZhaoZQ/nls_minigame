@@ -262,7 +262,35 @@ class GameManager {
     if (this.state !== 'playing') return null;
     const stamp = this.scene.beginFrame();
     const visible = this.raycaster.visibleUnlocked(this.screwManager.screws, this.boards, stamp);
-    return visible.length > 0 ? visible[0] : null;
+    return this._bestHintTarget(visible, stamp);
+  }
+
+  hintVisibleNow(entry) {
+    if (!entry || this.state !== 'playing') return false;
+    const stamp = this.scene.beginFrame();
+    const visible = this.raycaster.visibleUnlocked(this.screwManager.screws, this.boards, stamp);
+    return visible.indexOf(entry) >= 0;
+  }
+
+  _bestHintTarget(visible, stamp) {
+    if (visible.length === 0) return null;
+    const cam = this.camera;
+    if (!cam || typeof cam.project !== 'function') return visible[0];
+    let best = null;
+    let bestScore = -Infinity;
+    for (let i = 0; i < visible.length; i++) {
+      const s = visible[i];
+      if (!s.node || typeof s.node.worldPos !== 'function') continue;
+      const wp = s.node.worldPos(stamp);
+      const scr = cam.project([wp[0], wp[1] + GameConfig.screw.headHeight * 0.5, wp[2]]);
+      if (!scr) continue;
+      const nx = (scr.x - cam.screenWidth / 2) / (cam.screenWidth / 2);
+      const ny = (scr.y - cam.screenHeight / 2) / (cam.screenHeight / 2);
+      const off = Math.min(1, nx * nx + ny * ny);
+      const score = (1 - off) * 10 + wp[1] * 1.2;
+      if (score > bestScore) { bestScore = score; best = s; }
+    }
+    return best || visible[0];
   }
 
   clearAnyScrews(n) {

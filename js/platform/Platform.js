@@ -110,6 +110,36 @@ const Platform = {
     return { src, play() {}, stop() {}, destroy() {}, set volume(v) {}, get volume() { return 0; } };
   },
 
+  createWebAudio() {
+    if (_mock && _mock.createWebAudio) return _mock.createWebAudio();
+    if (hasWx() && wx.createWebAudioContext) {
+      try { return wx.createWebAudioContext(); } catch (e) { return null; }
+    }
+    return null;
+  },
+
+  readFileBuffer(path, cb) {
+    if (_mock && _mock.readFileBuffer) { _mock.readFileBuffer(path, cb); return; }
+    if (hasWx() && wx.getFileSystemManager) {
+      try {
+        wx.getFileSystemManager().readFile({
+          filePath: path,
+          success: (res) => cb(null, res.data),
+          fail: (e) => cb(e, null)
+        });
+      } catch (e) { cb(e, null); }
+      return;
+    }
+    if (typeof fetch === 'function') {
+      fetch(path)
+        .then((r) => r.arrayBuffer())
+        .then((b) => cb(null, b))
+        .catch((e) => cb(e, null));
+      return;
+    }
+    cb(new Error('readFileBuffer unavailable'), null);
+  },
+
   createInterstitialAd(adUnitId) {
     if (_mock && _mock.createInterstitialAd) return _mock.createInterstitialAd(adUnitId);
     if (hasWx() && adUnitId && wx.createInterstitialAd) {
@@ -238,13 +268,39 @@ const Platform = {
     }
   },
 
+  _lifecycle: { bound: false, hideCbs: [], showCbs: [] },
+
+  _bindLifecycleOnce() {
+    const L = Platform._lifecycle;
+    if (L.bound || _mock || !hasWx()) return;
+    L.bound = true;
+    if (wx.onHide) {
+      wx.onHide(() => {
+        const list = L.hideCbs.slice();
+        for (let i = 0; i < list.length; i++) { try { list[i](); } catch (e) {} }
+      });
+    }
+    if (wx.onShow) {
+      wx.onShow((res) => {
+        const list = L.showCbs.slice();
+        for (let i = 0; i < list.length; i++) { try { list[i](res); } catch (e) {} }
+      });
+    }
+  },
+
   onHide(cb) {
     if (_mock) { _mock.hideHandlers.push(cb); return; }
-    if (hasWx()) wx.onHide(cb);
+    if (hasWx()) {
+      Platform._bindLifecycleOnce();
+      Platform._lifecycle.hideCbs.push(cb);
+    }
   },
   onShow(cb) {
     if (_mock) { _mock.showHandlers.push(cb); return; }
-    if (hasWx()) wx.onShow(cb);
+    if (hasWx()) {
+      Platform._bindLifecycleOnce();
+      Platform._lifecycle.showCbs.push(cb);
+    }
   },
 
   reportEvent(name, params) {
@@ -331,6 +387,8 @@ function createMockPlatform(overrides) {
     createAudio() {
       return { src: '', play() {}, stop() {}, destroy() {}, volume: 0 };
     },
+    createWebAudio() { return null; },
+    readFileBuffer(p, cb) { cb(new Error('mock fs'), null); },
     createRewardedVideoAd() { return null; },
     createCustomAd() { return null; },
     createInterstitialAd() { return null; },

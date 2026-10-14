@@ -514,10 +514,10 @@ test('level select hosts the persistent template banner', () => {
   tapAt(pauseBtn.x, pauseBtn.y);
   stepFrames(2, 16);
   assertEq(app.pausePanel.visible, true);
-  assertEq(created.length, 2, 'pause unit created on first visit');
-  assertEq(app.templateAds.pause.active, true, 'pause surface uses its own unit');
-  assertEq(created[1].isShow, true);
-  assertEq(app.templateAds.levelSelect.active, false, 'level select unit hidden on pause');
+  assertEq(created.length, 1, 'pause must NOT create a second CustomAd object (each one carries base-library lifecycle listeners)');
+  assertEq(app.templateAds.pause, app.templateAds.levelSelect, 'levelSelect/pause/result share one banner instance');
+  assertEq(app.templateAds.result, app.templateAds.levelSelect, 'result surface reuses the same instance too');
+  assertEq(ad.isShow, true, 'shared banner re-shown on pause surface');
 
   Platform.inject(null);
   delete require.cache[require.resolve('../js/main')];

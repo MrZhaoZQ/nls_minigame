@@ -6,7 +6,7 @@ const GameConfig = require('../config/GameConfig');
 class TemplateAdManager {
   constructor(opts) {
     const o = opts || {};
-    this.unitId = o.unitId != null ? o.unitId : GameConfig.ad.templateUnitIds.levelSelect;
+    this.unitId = o.unitId != null ? o.unitId : GameConfig.ad.templateUnitId;
     this.screen = o.screen || { width: 375, height: 667 };
     this.bottomInset = o.bottomInset || 0;
     this.ad = null;

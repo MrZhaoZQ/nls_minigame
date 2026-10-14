@@ -180,7 +180,7 @@ Screw 状态（ScrewManager.ScrewState）：
 | 步骤 | 内容 | 推进条件 |
 |---|---|---|
 | 0 | 手势动画（滑动双箭头 + 摆动指尖）+ 文案「单指滑动旋转观察视角 / 双指缩放看清螺丝位置」 | 任意拖拽 |
-| 1 | 文案「点击发光的螺丝 / 把它拧下来」；首次拖拽后自动点亮一颗可拆螺丝（复用提示高亮 + HintMarker） | 收集到任意螺丝 |
+| 1 | 文案「点击发光的螺丝 / 把它拧下来」；首次拖拽后自动点亮一颗**视角最稳**的可拆螺丝（复用提示高亮 + HintMarker）。选取按可见度评分：屏幕居中者优先（拖拽旋转不离画），同屏位置下高层者优先（不被上层遮挡），并在拖拽中若目标转为不可见时自动换锚（`GameManager.hintVisibleNow`） | 收集到任意螺丝 |
 | 2 | 文案「凑齐 3 个同色自动消除 / 清完所有螺丝就过关」+「知道了」按钮 | 点击「知道了」→ 存档 `tutorialDone` |
 
 引导期间顶栏按钮全部置灰（`allDisabled`），其余输入照常。完成态持久化，重进不再触发。
@@ -344,12 +344,14 @@ module.exports = {
 | `sfx_win` / `sfx_lose` | 通关 / 失败结算 | 琶音上行 / 下行 |
 | `bgm_main` | 首触点解锁后循环播放（**12.8s 无缝循环**，75bpm Lo-fi，音量 0.35） | 75bpm 四小节下行和声（Fmaj7→Em7→Dm7→Cmaj7）：Rhodes 电钢 + 贝斯 + 软底鼓/刷子军鼓/摇摆踩镲 + 稀疏五声铃铛旋律 + 轻黑胶底噪；结尾 1s 线性交叉淡化实现无缝循环 |
 
-- 启动时全部预创建 InnerAudioContext；**首次触点才解锁播放**（微信策略，在 `onTap` 首调 `unlock()`，同时启动 BGM）；
-- 音效单条播放失败即标记 `_failed` 静默降级，不影响游戏；暂停面板可全局静音（运行时开关，静音联动停/复 BGM）；
-- **BGM 安卓韧性**（iOS 能响、安卓无声的根因对策）：
+- **音频后端两级（WebAudio 优先）**：`preload` 先试 `wx.createWebAudioContext()`（`Platform.createWebAudio`）——成功则 9 音效 + BGM 经 `readFileBuffer` 读包内 wav → `decodeAudioData` 进 buffer，播放用一次性 BufferSource（天然重叠、低延迟、**0 个 InnerAudioContext**，消除每个实例内部挂的 `LifeCycle:Show` 监听器，根治监听器告警）；WebAudio 不可用或单项解码失败 → 该项**自动降级 InnerAudioContext**（音效懒创建、BGM 走三重韧性链路），整体能力可混用；
+- **首次触点才解锁播放**（微信策略，`onTap` 首调 `unlock()`，同时启动 BGM）；
+- 音效单条播放失败即标记 `_failed` 静默降级，不影响游戏；暂停面板可全局静音（运行时开关，静音联动停/复 BGM）；并发 BufferSource 上限 12（`WEB_LIVE_MAX`），极端连点只吞峰值不涨内存；
+- **BGM 安卓韧性**（legacy 路径；iOS 能响、安卓无声的根因对策）：
   1. `onCanplay` 门控——安卓上 `play()` 可能早于元数据就绪被静默丢弃，就绪回调到达时若 `bgmOn` 仍在则补播；
-  2. `onError` 自动重建——安卓解码失败（如 errCode 10002）时销毁旧上下文、重建并重播，最多 3 次，不冒泡不打扰玩家；
-  3. `ensureBgm()` 挂在 `Platform.onShow`——安卓 InnerAudioContext 切后台被暂停后**不会自动恢复**（iOS 会），回前台时按需补播。
+  2. `onError` 自动重建——安卓解码失败（如 errCode 10002）时销毁旧上下文、重建并重播，**进程级总预算 3 次**（静音切换/换关不再刷新配额，杜绝实例随重建次数累积泄漏）；超限本局彻底放弃 BGM（`_bgmDead`，音效不受累）；
+  3. `ensureBgm()`/`webResume()` 挂在 `Platform.onShow`——安卓 InnerAudioContext 切后台被暂停后**不会自动恢复**（iOS 会），回前台时 WebAudio 先 `resume()` 再按需补播/重建 source；
+- `Platform.onShow/onHide` 收敛为**wx 层单订阅 + 内部 fan-out**：业务多次订阅只注册 1 个 wx 监听器，杜绝业务侧 `LifeCycle:Show` 监听增长。
 
 ### 5.2 视觉反馈清单
 
@@ -410,7 +412,7 @@ module.exports = {
 | 相邻间隔 | ≥90s（`interCooldownMs`，锚点持久化 `screwmaster_intercount.lastShowTs`，跨会话生效） |
 | 每日上限 | 8 次（`interDailyLimit`，独立日计数 `screwmaster_intercount`） |
 
-**原生模板广告（`TemplateAdManager`，已接入）**：`ad.templateUnitIds` 为三个展示面各配独立原生模板广告位（levelSelect/pause/result），20:7 横幅卡片模板。展示面 = **选关页（常驻）** + 结算面板 + 暂停面板（tick 每帧闸门按 surface 路由，同帧仅一个实例展示；实例懒建——首次激活才创建原生组件，降低启动监听器与广告请求数）；游戏进行中、失败面板、回归遮罩期间隐藏；点「下一关」先隐藏横幅再走插屏，避免双广告同屏。选关页底部为横幅专区：网格 `viewBottom` 经 `bottomReserve`（安全区 + 估算横幅高 + 10px 间隙）让位，该区无任何按钮。位置通栏贴安全区上沿（`left` 固定 0、`templateMargin` 为 0，按屏宽 × `templateRatio` 估算高度，`onLoad/onResize` 后用真实模板尺寸校准，窗口 resize 重定位）。基础库 <2.11.1、创建异常、无填充均静默降级不出现；`onError` 仅真机告警。**真机怪癖**：部分基础库（实测 Lib 3.16.3）`CustomAd.isShow` 为函数而非布尔属性，代码经 `_isShown()` 统一解包，禁止直接真值判断。**约束**：横幅属原生浮层（绘制于 canvas 之上），新增展示面须确认不遮挡交互控件。
+**原生模板广告（`TemplateAdManager`，已接入）**：`ad.templateUnitId` 单位共用——选关/暂停/结算**三个展示面共享一个 CustomAd 实例**（`wx.createCustomAd` 每创建一个对象，基础库都会在其上挂 `LifeCycle:Show` 等内部监听；三屏各建实例会在首次进暂停/结算时把监听数推过 30，触发 `[Event] N listeners ... possibly causing memory leak` 告警；收敛为单实例后三屏只做同一对象的 show/hide 切换，**实例懒建——首个展示面激活才创建**）；20:7 横幅卡片模板。展示面 = **选关页（常驻）** + 结算面板 + 暂停面板（tick 每帧闸门按 surface 路由，同帧仅一个横幅展示）；游戏进行中、失败面板、回归遮罩期间隐藏；点「下一关」先隐藏横幅再走插屏，避免双广告同屏。选关页底部为横幅专区：网格 `viewBottom` 经 `bottomReserve`（安全区 + 估算横幅高 + 10px 间隙）让位，该区无任何按钮。位置通栏贴安全区上沿（`left` 固定 0、`templateMargin` 为 0，按屏宽 × `templateRatio` 估算高度，`onLoad/onResize` 后用真实模板尺寸校准，窗口 resize 重定位）。基础库 <2.11.1、创建异常、无填充均静默降级不出现；`onError` 仅真机告警。**真机怪癖**：部分基础库（实测 Lib 3.16.3）`CustomAd.isShow` 为函数而非布尔属性，代码经 `_isShown()` 统一解包，禁止直接真值判断。**约束**：横幅属原生浮层（绘制于 canvas 之上），新增展示面须确认不遮挡交互控件。
 
 ### 6.3 ShareManager（邀好友，回退开关模式）
 
@@ -470,7 +472,7 @@ module.exports = {
 | 粒子 | `ParticleFX` 对象池（≤300 粒；`burst` 收集爆发、`dust` 坍塌灰尘），降级半量 | 避免 GC 抖动 |
 | 物理 | **无**（决策 D5） | 拾取/遮挡靠几何解析 |
 | 平台层 | `Platform.js` 统一封装 wx API + `createMockPlatform` 测试桩注入；环境识别 `wechat/browser/node/mock` | 玩法逻辑 100% 离线可测 |
-| 存储/音频/广告 | 均经 Platform：`setStorageSync` / `InnerAudioContext` / `createRewardedVideoAd` | 可 mock、可降级 |
+| 存储/音频/广告 | 均经 Platform：`setStorageSync` / `createWebAudio+readFileBuffer`（WebAudio 音效，失败项逐项降级 `InnerAudioContext`）/ `createRewardedVideoAd` | 可 mock、可降级 |
 
 ### 7.2 分层红线（维护必读）
 
@@ -483,7 +485,7 @@ module.exports = {
 
 | 模块 | 职责 | 关键接口 |
 |---|---|---|
-| `GameManager` | 对局状态机、收集/三消/胜负流转、撤销、提示选取、清槽 | `startLevel` `handleTap` `undo` `requestHint` `clearAnyScrews` |
+| `GameManager` | 对局状态机、收集/三消/胜负流转、撤销、提示选取（屏幕居中/高层优先的可见度评分）、清槽 | `startLevel` `handleTap` `undo` `requestHint` `hintVisibleNow` `clearAnyScrews` |
 | `LevelLoader` | 数据 → 场景树 + 覆盖表 + 取景参数 | `load(data, scene, screwManager)` |
 | `ScrewManager` | 螺丝四态状态机 + 拧出补间 | `create` `setLocked` `unscrew` |
 | `SlotManager` | 槽位数组（容量 ≤8）与三消查询 | `add` `findMatches` `removeMatch` `nearFull` `isDeadEnd` |
@@ -571,9 +573,13 @@ tick(): now/dt(钳制 ≤0.05) → 慢帧统计 → [非冻结] 相机/补间/�
 
 | 保护项 | 规则 |
 |---|---|
-| 降帧保护 | 单帧 >40ms 累计满 30 帧 → `degraded=true`：粒子减半（`halfMode`）+ 关闭全部震动 |
+| 降帧保护 | 单帧 >40ms 累计满 30 帧 → `degraded=true`：粒子减半（`halfMode`）+ 关闭全部震动 + **螺丝低模**（只保留投影面/法线水平以上面，侧面与锥底跳过）+ **关闭地面阴影** |
+| 渲染分辨率封顶 | canvas 缩放 = `min(pixelRatio, dprCap 3)`——**常规机型（DPR 2~3）保持原生清晰度不降**，仅超高 DPR（>3）封顶 3；已进入 `degraded` 的卡机再降到 `dprCapDegraded 2` 换续航与帧率（清晰度只对撑不住的机器让步） |
+| 屏外剔除 | 面片投影包围盒完全出屏（8px 余量）→ 不入队不建路径；**面任一顶点位于近平面后即整面丢弃**（该顶点投影值是过期缓存，防止据此误裁屏内面片）；阴影椭圆同理中心+半径出屏即跳过 |
+| 渲染零分配 | face 记录对象池复用（pts 数组复用）；`hexToRgb` 结果不再逐帧解析，颜色光照 `shade` 走 64 级共享 LUT（首用构建、跨帧字符串引用相同）；高亮描边 α量化 16 级；back-face/剔除循环纯标量运算无临时数组 |
+| 脉冲跳帧 | 仅高亮脉冲/HintMarker/教程/Toast/胜利横幅在动（相机、补间、粒子、按压缩放、面板显隐均静止）时**隔帧出图（30fps）**；任何内容变化/强动画立即恢复 60fps；idle 依旧完全不出图（D15） |
 | dt 钳制 | 切后台回归等超大 dt 一律按 0.05s 结算，防补间跳变 |
-| 窗口 resize | `onWindowResize` → 重建画布/背景渐变/相机/胶囊/安全区/全部 UI 布局（折叠屏兼容） |
+| 窗口 resize | `onWindowResize` → 重建画布（含 DPR 封顶重算）/背景渐变/相机/胶囊/安全区/全部 UI 布局（折叠屏兼容） |
 | 生命周期 | `onHide` 记时间戳；`onShow` 清时间戳并重置上帧时间（防超大 dt）；>60s 后台回归出遮罩 |
 | 背景缓存 | 渐变对象随画布尺寸缓存，不逐帧重建 |
 | 关卡懒加载 | `levels/index.js` getter + 缓存，启动只解析入口关卡 |
@@ -587,7 +593,7 @@ tick(): now/dt(钳制 ≤0.05) → 慢帧统计 → [非冻结] 相机/补间/�
 | 指标 | 预算 | 现状 |
 |---|---|---|
 | 首包体积 | ≤2MB | 代码+30 关+9 音效+1 BGM 合计 ≈1.15MB，余量充足 |
-| 单帧可见面片 | ≤3000（2D 填充路径） | 最大关（12 板×50 螺丝）约 1700 面片（板 6 面/个，螺丝 33 面/个，剔除前） |
+| 单帧可见面片 | ≤3000（2D 填充路径） | 最大关（12 板×50 螺丝）约 1700 面片（板 6 面/个，螺丝 33 面/个）；背面+屏外双剔除后通常 <50%，降级低模再砍螺丝侧面约 -40% |
 | 同屏粒子 | ≤300（降级 150） | 收集 10 粒/次、坍塌灰尘 10 粒/次 |
 | 常驻内存 | ≤150MB | 无引擎，远低于预算 |
 | 帧率 | 低端 ≥30 / 中端 ≥50 | 降帧保护兜底 |
@@ -744,11 +750,7 @@ const GameConfig = {
         interUnitId: 'adunit-d11de76248f20c6a',
         interCooldownMs: 90000, interDailyLimit: 8, interProtectedLevels: 1,
         interWinGap: 2,
-        templateUnitIds: {
-          levelSelect: 'adunit-f886986b0c0413d5',
-          pause: 'adunit-7f7b78cfd368c529',
-          result: 'adunit-3ba905bad18a1e03'
-        },
+        templateUnitId: 'adunit-f886986b0c0413d5',  // 三屏共用单实例（每多建一个 CustomAd 即一组基础库生命周期监听）
         templateAdIntervals: 30,
         templateMargin: 10, templateRatio: [20, 7] },
   share: {

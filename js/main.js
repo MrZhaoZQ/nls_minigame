@@ -55,11 +55,14 @@ function bootstrap() {
 
   function setupCanvas() {
     if (!canvas) return;
-    canvas.width = app.screen.width * app.screen.pixelRatio;
-    canvas.height = app.screen.height * app.screen.pixelRatio;
+    const cap = app.degraded ? GameConfig.render.dprCapDegraded : GameConfig.render.dprCap;
+    const rs = Math.min(app.screen.pixelRatio || 1, cap || 2);
+    app.renderScale = rs;
+    canvas.width = Math.round(app.screen.width * rs);
+    canvas.height = Math.round(app.screen.height * rs);
     app.ctx = canvas.getContext('2d');
     if (app.ctx) {
-      app.ctx.setTransform(app.screen.pixelRatio, 0, 0, app.screen.pixelRatio, 0, 0);
+      app.ctx.setTransform(rs, 0, 0, rs, 0, 0);
       app.forceRender = true;
       const g = app.ctx.createLinearGradient(0, 0, 0, app.screen.height);
       g.addColorStop(0, GameConfig.scene.bgTop);
@@ -133,20 +136,14 @@ function bootstrap() {
   adMgr.init();
   const interMgr = new InterstitialManager();
   interMgr.init();
-  const templateAds = {};
-  const templateKeys = Object.keys(GameConfig.ad.templateUnitIds);
-  for (let i = 0; i < templateKeys.length; i++) {
-    templateAds[templateKeys[i]] = new TemplateAdManager({
-      unitId: GameConfig.ad.templateUnitIds[templateKeys[i]],
-      screen: { width: info.width, height: info.height },
-      bottomInset: info.safeArea ? Math.max(0, info.height - info.safeArea.bottom) : 0
-    });
-  }
+  const templateAd = new TemplateAdManager({
+    unitId: GameConfig.ad.templateUnitId,
+    screen: { width: info.width, height: info.height },
+    bottomInset: info.safeArea ? Math.max(0, info.height - info.safeArea.bottom) : 0
+  });
+  const templateAds = { levelSelect: templateAd, pause: templateAd, result: templateAd };
   function setTemplateSurface(surface) {
-    let changed = false;
-    for (let i = 0; i < templateKeys.length; i++) {
-      if (templateAds[templateKeys[i]].setActive(templateKeys[i] === surface)) changed = true;
-    }
+    const changed = templateAd.setActive(!!surface);
     if (changed) app.forceRender = true;
   }
   const shareMgr = new ShareManager();
@@ -327,9 +324,9 @@ function bootstrap() {
     if (isFrozen()) return;
     if (tutorial.active) {
       tutorial.notifyDrag();
-      if (tutorial.step === 1 && !hintMarker.target) {
+      if (tutorial.step === 1 && (!hintMarker.target || !game.hintVisibleNow(hintMarker.target))) {
         const t = game.requestHint();
-        if (t) {
+        if (t && t !== hintMarker.target) {
           renderer.highlightScrewId = t.node.id;
           hintMarker.setTarget(t);
         }
@@ -680,6 +677,7 @@ function bootstrap() {
     app.hiddenAt = Platform.now();
   });
   Platform.onShow((res) => {
+    audio.webResume();
     audio.ensureBgm();
     const q = res && res.query;
     const qLevel = parseInt(q && q.level, 10);
@@ -713,9 +711,7 @@ function bootstrap() {
     app.capsule = capsuleRect;
     app.bottomInset = info2.safeArea
       ? Math.max(0, info2.height - info2.safeArea.bottom) : 0;
-    for (let i = 0; i < templateKeys.length; i++) {
-      templateAds[templateKeys[i]].layout(app.screen, app.bottomInset);
-    }
+    templateAd.layout(app.screen, app.bottomInset);
     slotUI.resize(info2.width, info2.height, app.bottomInset);
     topBar.resize(info2.width, info2.height, capsuleRect);
     resultPanel.resize(info2.width, info2.height);
@@ -745,6 +741,8 @@ function bootstrap() {
       if (app.slowFrames > 30) {
         app.degraded = true;
         particles.halfMode = true;
+        renderer.degraded = true;
+        setupCanvas();
         Platform.setPreferredFramesPerSecond(30);
       }
     } else if (app.slowFrames > 0) {
@@ -787,19 +785,23 @@ function bootstrap() {
     const revSum = topBar.rev + slotUI.rev + resultPanel.rev + failPanel.rev +
       helpPanel.rev + levelSelect.rev + pausePanel.rev + toast.rev +
       tutorial.rev + hintMarker.rev;
-    const animActive = camCtrl.isMoving() || tweens.count > 0 ||
+    const strongAnim = camCtrl.isMoving() || tweens.count > 0 ||
       particles.active.length > 0 || slotUI.hasAnim() ||
       (resultPanel.visible && resultPanel.animT < 1) ||
       (failPanel.visible && failPanel.animT < 1) ||
       (helpPanel.visible && (helpPanel.animT < 1 || helpPanel.vel !== 0)) ||
       topBar.pressedT > 0 || levelSelect.pressedT > 0 ||
-      pausePanel.pressedT > 0 || resultPanel.pressedT > 0 || failPanel.pressedT > 0 ||
+      pausePanel.pressedT > 0 || resultPanel.pressedT > 0 || failPanel.pressedT > 0;
+    const animActive = strongAnim ||
       toast.msg !== '' || hintMarker.target !== null || tutorial.active ||
       (app.winBannerTime > 0 && app.winBannerTime < 0.5);
-    const dirty = app.forceRender || animActive || revSum !== app._lastRevSum;
+    const contentChanged = app.forceRender || revSum !== app._lastRevSum;
+    const dirty = contentChanged || animActive;
     app._lastRevSum = revSum;
+    if (animActive) app._drawParity = ((app._drawParity | 0) + 1) & 1;
+    const pulseOnly = animActive && !strongAnim && !contentChanged;
 
-    if (ctx && dirty) {
+    if (ctx && dirty && !(pulseOnly && app._drawParity === 0)) {
       app.forceRender = false;
       const w = app.screen.width;
       const h = app.screen.height;

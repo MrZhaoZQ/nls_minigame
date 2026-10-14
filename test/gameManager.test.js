@@ -218,6 +218,59 @@ test('visibleUnlocked hides camera-occluded screws, keeps visible ones', () => {
   assertEq(none.length, 0, 'screws behind the camera are not visible');
 });
 
+test('requestHint prefers the most view-stable screw (centered, then higher)', () => {
+  const scene = new SceneGraph();
+  const tweens = new TweenManager();
+  const screwManager = new ScrewManager(tweens);
+  const data = {
+    id: 9, name: 'v', colors: ['red', 'blue', 'green'], slotCount: 5, gridSize: 6,
+    boards: [
+      { id: 'bEdgeL', prefab: 'Board_Single', position: [-4.2, 0, 0], rotation: [0, 0, 0], holes: [{ id: 'h1', pos: [0, 0, 0], color: 'red' }] },
+      { id: 'bEdgeR', prefab: 'Board_Single', position: [4.2, 0, 0], rotation: [0, 0, 0], holes: [{ id: 'h2', pos: [0, 0, 0], color: 'green' }] },
+      { id: 'bCenter', prefab: 'Board_Single', position: [0, 0, 0], rotation: [0, 0, 0], holes: [{ id: 'h3', pos: [0, 0, 0], color: 'blue' }] }
+    ]
+  };
+  const cam = new Camera(375, 667);
+  cam.updateFrom(0, 0.78, 6, [0, 0.3, 0], null);
+  const game = new GameManager({
+    bus: new EventBus(), scene: scene, camera: cam, tweens: tweens,
+    screwManager: screwManager, slotManager: new SlotManager(),
+    raycaster: new ScrewRaycaster(cam), input: null
+  });
+  game.startLevel(data);
+  const hint = game.requestHint();
+  assertEq(hint.boardId, 'bCenter', 'edge screws drift out of view after yaw drag; center wins');
+});
+
+test('hintVisibleNow tracks occlusion for tutorial re-anchor', () => {
+  const bus = new EventBus();
+  const scene = new SceneGraph();
+  const camera = new Camera(375, 667);
+  camera.updateFrom(0, 0.78, 6, [0, 0.3, 0], null);
+  const tweens = new TweenManager();
+  const screwManager = new ScrewManager(tweens);
+  const data = {
+    id: 9, name: 'c', colors: ['red', 'blue'], slotCount: 5, gridSize: 4,
+    boards: [
+      { id: 'b1', prefab: 'Board_Single', position: [0, 0, 0], rotation: [0, 0, 0],
+        holes: [{ id: 'h1', pos: [0, 0, 0], color: 'red' }] },
+      { id: 'b2', prefab: 'Board_Single', position: [0, 0.5, 0], rotation: [0, 0, 0],
+        holes: [{ id: 'h2', pos: [0.9, 0, 0], color: 'blue' }] }
+    ]
+  };
+  const game = new GameManager({
+    bus: bus, scene: scene, camera: camera, tweens: tweens,
+    screwManager: screwManager, slotManager: new SlotManager(),
+    raycaster: new ScrewRaycaster(camera), input: null
+  });
+  game.startLevel(data);
+  const screws = screwManager.screws;
+  const low = screws.find(s => s.boardId === 'b1');
+  const up = screws.find(s => s.boardId === 'b2');
+  assertEq(game.hintVisibleNow(up), true, 'upper screw is visible');
+  assertEq(game.hintVisibleNow(low), false, 'screw under a board is not visible');
+});
+
 test('requestHint targets camera-visible screw', () => {
   const bus = new EventBus();
   const scene = new SceneGraph();
