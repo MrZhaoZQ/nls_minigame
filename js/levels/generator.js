@@ -22,7 +22,7 @@ const STAGES = [
 const COLOR_NAMES = ['red', 'blue', 'yellow', 'green', 'purple', 'orange'];
 
 const EARLY = {
-  1: { layers: [1, 1], boards: [1, 2], colors: [3, 3], screws: [9, 9], cover: 0 },
+  1: { layers: [1, 1], boards: [2, 2], colors: [3, 3], screws: [9, 9], cover: 0 },
   2: { layers: [2, 2], boards: [2, 3], colors: [4, 4], screws: [12, 12], cover: 0.3 },
   3: { layers: [2, 2], boards: [3, 3], colors: [4, 4], screws: [15, 15], cover: 0.4 },
   4: { layers: [2, 3], boards: [3, 4], colors: [4, 4], screws: [18, 18], cover: 0.5 },
@@ -75,7 +75,11 @@ function pickRange(rng, range) {
   return Math.floor(range[0] + rng() * (range[1] - range[0] + 1));
 }
 
-function distributeColors(total, numColors) {
+const SAME_COLOR_CAP_FROM = 3;
+const SAME_COLOR_MAX_PER_BOARD = 2;
+
+// cap 契约：调用方须保证 numColors * floor(cap/3)*3 >= total，否则截断后总和不足。
+function distributeColors(total, numColors, cap) {
   const triples = Math.floor(total / 3);
   const base = Math.floor(triples / numColors);
   const extra = triples % numColors;
@@ -83,7 +87,91 @@ function distributeColors(total, numColors) {
   for (let c = 0; c < numColors; c++) {
     counts.push((base + (c < extra ? 1 : 0)) * 3);
   }
+  if (cap != null) {
+    const capQ = Math.floor(cap / 3) * 3;
+    let excess = 0;
+    for (let c = 0; c < numColors; c++) {
+      if (counts[c] > capQ) { excess += counts[c] - capQ; counts[c] = capQ; }
+    }
+    let guard = 0;
+    while (excess > 0 && guard++ < 1000) {
+      let placed = false;
+      for (let c = 0; c < numColors && excess > 0; c++) {
+        if (counts[c] + 3 <= capQ) { counts[c] += 3; excess -= 3; placed = true; }
+      }
+      if (!placed) break;
+    }
+  }
   return counts;
+}
+
+// 同板同色超限修复：与其他板的螺丝成对交换颜色（颜色与 coveredBy 几何无关，交换安全）。
+// 贪心 2-cycle 存在罕见死角（双紧颜色互卡），故失败后做合法随机扰动重试（至多 24 轮）；
+// 仍失败返回 false——校验器"同板同色"静态闸门会拒收该 seed，buildLevels 自动换 seed。
+function disperseSameColor(level, rng, maxPerBoard) {
+  const slots = [];
+  const slotBoard = [];
+  for (let b = 0; b < level.boards.length; b++) {
+    const holes = level.boards[b].holes;
+    for (let h = 0; h < holes.length; h++) {
+      slots.push(holes[h]);
+      slotBoard.push(b);
+    }
+  }
+  const n = slots.length;
+  const counts = [];
+  for (let b = 0; b < level.boards.length; b++) counts.push({});
+
+  function rebuildCounts() {
+    for (let b = 0; b < counts.length; b++) counts[b] = {};
+    for (let i = 0; i < n; i++) {
+      const b = slotBoard[i];
+      const c = slots[i].color;
+      counts[b][c] = (counts[b][c] || 0) + 1;
+    }
+  }
+
+  function legalSwap(i, j) {
+    const bi = slotBoard[i], bj = slotBoard[j];
+    if (bi === bj) return false;
+    const ci = slots[i].color, cj = slots[j].color;
+    if (ci === cj) return false;
+    if ((counts[bi][cj] || 0) + 1 > maxPerBoard) return false;
+    if ((counts[bj][ci] || 0) + 1 > maxPerBoard) return false;
+    counts[bi][ci]--;
+    counts[bi][cj] = (counts[bi][cj] || 0) + 1;
+    counts[bj][cj]--;
+    counts[bj][ci] = (counts[bj][ci] || 0) + 1;
+    slots[i].color = cj;
+    slots[j].color = ci;
+    return true;
+  }
+
+  for (let attempt = 0; attempt < 24; attempt++) {
+    rebuildCounts();
+    if (attempt > 0) {
+      for (let s = 0; s < n; s++) {
+        legalSwap(Math.floor(rng() * n), Math.floor(rng() * n));
+      }
+      rebuildCounts();
+    }
+    let stuck = false;
+    for (let iter = 0; iter < 2000; iter++) {
+      let vi = -1;
+      for (let i = 0; i < n; i++) {
+        if (counts[slotBoard[i]][slots[i].color] > maxPerBoard) { vi = i; break; }
+      }
+      if (vi < 0) return true;
+      const start = Math.floor(rng() * n);
+      let swapped = false;
+      for (let k = 0; k < n && !swapped; k++) {
+        swapped = legalSwap(vi, (start + k) % n);
+      }
+      if (!swapped) { stuck = true; break; }
+    }
+    if (stuck) continue;
+  }
+  return false;
 }
 
 function prefabHalfExtents(prefab) {
@@ -127,7 +215,7 @@ function generateLevel(levelId, seed) {
 
   const layerCount = pickRange(rng, stage.layers);
   const boardCount = pickRange(rng, stage.boards);
-  const colorCount = pickRange(rng, stage.colors);
+  let colorCount = pickRange(rng, stage.colors);
 
   const shapePool = [];
   const shapeChance = levelId < 3 ? 0 : (levelId <= 5 ? 0.2 : 0.35);
@@ -167,7 +255,34 @@ function generateLevel(levelId, seed) {
     totalScrews--;
   }
 
-  const colorCounts = distributeColors(totalScrews, colorCount);
+  // 同板同色 ≤2 的容量预检（第 3 关起）：每色上限 = floor(2*板数/3)*3；
+  // 颜色数装不下 → 自动 +1 色（至 6）；6 色仍不够 → 下调螺丝总数（从孔最多的板减）。
+  let capPerColor = null;
+  if (levelId >= SAME_COLOR_CAP_FROM) {
+    capPerColor = Math.floor((2 * boardCount) / 3) * 3;
+    if (capPerColor < 3) {
+      capPerColor = null;
+    } else {
+      while (colorCount < COLOR_NAMES.length && colorCount * capPerColor < totalScrews) {
+        colorCount++;
+      }
+      if (colorCount * capPerColor < totalScrews) {
+        let cut = totalScrews - colorCount * capPerColor;
+        while (cut > 0) {
+          let bi = -1;
+          for (let b = 0; b < holesPerBoard.length; b++) {
+            if (holesPerBoard[b] > perBoardMin && (bi < 0 || holesPerBoard[bi] < holesPerBoard[b])) bi = b;
+          }
+          if (bi < 0) break;
+          holesPerBoard[bi]--;
+          cut--;
+          totalScrews--;
+        }
+      }
+    }
+  }
+
+  const colorCounts = distributeColors(totalScrews, colorCount, capPerColor);
   const colorPool = [];
   for (let c = 0; c < colorCounts.length; c++) {
     for (let k = 0; k < colorCounts[c]; k++) colorPool.push(COLOR_NAMES[c]);
@@ -269,6 +384,10 @@ function generateLevel(levelId, seed) {
   };
 
   assignCovering(level, stage.cover, rng);
+  if (capPerColor != null) {
+    disperseSameColor(level, rng, SAME_COLOR_MAX_PER_BOARD);
+    // 修复失败（罕见贪心死角）不阻断：校验器"同板同色"闸门会拒收该 seed，buildLevels 自动换 seed。
+  }
   return level;
 }
 
@@ -314,4 +433,4 @@ function assignCovering(level, coverRatio, rng) {
   }
 }
 
-module.exports = { generateLevel, stageOf, distributeColors, boardFootprint, prefabHalfExtents, holeGridOf };
+module.exports = { generateLevel, stageOf, distributeColors, boardFootprint, prefabHalfExtents, holeGridOf, disperseSameColor };

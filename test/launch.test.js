@@ -335,3 +335,47 @@ test('scene transitions clear stale resume overlay', () => {
   Platform.inject(null);
   delete require.cache[require.resolve('../js/main')];
 });
+
+test('cold start calibrates pixelRatio from factory canvas when systemInfo lies', () => {
+  const storage = {
+    screwmaster_tutorial: '1',
+    screwmaster_progress: JSON.stringify({ unlockedLevel: 2 })
+  };
+  const frames = [];
+  global.wx = {};
+  const fakeCanvas = { width: 1125, height: 2001, getContext() { return stubCtx(); } };
+  Platform.inject(Platform.createMockPlatform({
+    getSystemInfo: () => ({
+      width: 375, height: 667, pixelRatio: 1, safeArea: null, platform: 'android'
+    }),
+    createCanvas: () => fakeCanvas,
+    raf: (cb) => { frames.push(cb); return frames.length; },
+    now: () => 0,
+    getLaunchOptions: () => ({}),
+    storage
+  }));
+  delete require.cache[require.resolve('../js/main')];
+  const app = require('../js/main')();
+  assertEq(app.screen.pixelRatio, 3, 'factory canvas 1125/375 exposes real DPR 3 over buggy pixelRatio 1');
+  assertEq(app.renderScale, 3, 'render scale uses the calibrated DPR');
+  assertEq(fakeCanvas.width, 1125, 'canvas built at native resolution, no blurry cold start');
+
+  const fake2 = { width: 750, height: 1334, getContext() { return stubCtx(); } };
+  Platform.inject(Platform.createMockPlatform({
+    getSystemInfo: () => ({
+      width: 375, height: 667, pixelRatio: 2, safeArea: null, platform: 'android'
+    }),
+    createCanvas: () => fake2,
+    raf: (cb) => { frames.push(cb); return frames.length; },
+    now: () => 0,
+    getLaunchOptions: () => ({}),
+    storage
+  }));
+  delete require.cache[require.resolve('../js/main')];
+  const app2 = require('../js/main')();
+  assertEq(app2.screen.pixelRatio, 2, 'honest systemInfo path untouched');
+  assertEq(fake2.width, 750);
+  Platform.inject(null);
+  delete global.wx;
+  delete require.cache[require.resolve('../js/main')];
+});

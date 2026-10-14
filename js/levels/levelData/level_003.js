@@ -34,7 +34,7 @@ module.exports = {
             0,
             0.26
           ],
-          "color": "yellow"
+          "color": "green"
         },
         {
           "id": "h2",
@@ -43,7 +43,7 @@ module.exports = {
             0,
             -0.26
           ],
-          "color": "blue"
+          "color": "red"
         },
         {
           "id": "h3",
@@ -114,7 +114,7 @@ module.exports = {
             0,
             -0.26
           ],
-          "color": "red"
+          "color": "blue"
         },
         {
           "id": "h2",
@@ -141,7 +141,7 @@ module.exports = {
             0,
             -0.26
           ],
-          "color": "green"
+          "color": "yellow"
         },
         {
           "id": "h5",

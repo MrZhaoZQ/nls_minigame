@@ -7,7 +7,8 @@ module.exports = {
     "red",
     "blue",
     "yellow",
-    "green"
+    "green",
+    "purple"
   ],
   "slotCount": 5,
   "gridSize": 10,
@@ -34,7 +35,7 @@ module.exports = {
             0,
             -0.26
           ],
-          "color": "blue",
+          "color": "yellow",
           "coveredBy": [
             "b4"
           ]
@@ -46,7 +47,7 @@ module.exports = {
             0,
             0.26
           ],
-          "color": "red",
+          "color": "blue",
           "coveredBy": [
             "b4"
           ]
@@ -135,7 +136,7 @@ module.exports = {
             0,
             0.26
           ],
-          "color": "red"
+          "color": "blue"
         },
         {
           "id": "h2",
@@ -144,7 +145,7 @@ module.exports = {
             0,
             0.26
           ],
-          "color": "green",
+          "color": "purple",
           "coveredBy": [
             "b4"
           ]
@@ -165,7 +166,7 @@ module.exports = {
             0,
             -0.26
           ],
-          "color": "red",
+          "color": "blue",
           "coveredBy": [
             "b4"
           ]
@@ -251,7 +252,7 @@ module.exports = {
             0,
             -0.26
           ],
-          "color": "yellow"
+          "color": "green"
         },
         {
           "id": "h6",
@@ -260,7 +261,7 @@ module.exports = {
             0,
             -0.26
           ],
-          "color": "green",
+          "color": "purple",
           "coveredBy": [
             "b4"
           ]
@@ -289,7 +290,7 @@ module.exports = {
             0,
             0.26
           ],
-          "color": "blue"
+          "color": "yellow"
         },
         {
           "id": "h2",
@@ -298,7 +299,7 @@ module.exports = {
             0,
             -1.1
           ],
-          "color": "blue"
+          "color": "yellow"
         },
         {
           "id": "h3",
@@ -307,7 +308,7 @@ module.exports = {
             0,
             0.26
           ],
-          "color": "yellow"
+          "color": "green"
         },
         {
           "id": "h4",
@@ -316,7 +317,7 @@ module.exports = {
             0,
             -0.26
           ],
-          "color": "green"
+          "color": "purple"
         },
         {
           "id": "h5",
@@ -325,7 +326,7 @@ module.exports = {
             0,
             -0.26
           ],
-          "color": "red"
+          "color": "blue"
         },
         {
           "id": "h6",
@@ -334,7 +335,7 @@ module.exports = {
             0,
             0.26
           ],
-          "color": "yellow"
+          "color": "green"
         },
         {
           "id": "h7",
@@ -352,7 +353,7 @@ module.exports = {
             0,
             -0.26
           ],
-          "color": "blue"
+          "color": "red"
         }
       ]
     }

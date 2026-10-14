@@ -7,6 +7,8 @@ const TIGHT_MIN_RATE = 0.3;
 const COGNITIVE_FROM_LEVEL = 6;
 const COGNITIVE_MIN_ENTROPY = 0.1;
 const COGNITIVE_MIN_STRUCTURE = 1.15;
+const SAME_COLOR_CAP_FROM = 3;
+const SAME_COLOR_MAX_PER_BOARD = 2;
 
 function mulberry32(seed) {
   let a = seed >>> 0;
@@ -180,6 +182,8 @@ function validate(level, opts) {
   const cogFrom = o.cogFrom != null ? o.cogFrom : COGNITIVE_FROM_LEVEL;
   const cogEntropyMin = o.cogEntropyMin != null ? o.cogEntropyMin : COGNITIVE_MIN_ENTROPY;
   const cogStructMin = o.cogStructMin != null ? o.cogStructMin : COGNITIVE_MIN_STRUCTURE;
+  const sameCapFrom = o.sameColorCapFrom != null ? o.sameColorCapFrom : SAME_COLOR_CAP_FROM;
+  const sameCap = o.sameColorCap != null ? o.sameColorCap : SAME_COLOR_MAX_PER_BOARD;
 
   const boardIds = {};
   for (let i = 0; i < level.boards.length; i++) {
@@ -232,6 +236,21 @@ function validate(level, opts) {
         const dx = pa[0] - pb[0], dz = pa[2] - pb[2];
         if (dx * dx + dz * dz < SCREW_MIN_DIST * SCREW_MIN_DIST) {
           errors.push(bd.id + ' holes ' + bd.holes[a].id + '/' + bd.holes[bIdx].id + ' overlap');
+        }
+      }
+    }
+
+    if (level.id >= sameCapFrom) {
+      const cc = {};
+      for (let j = 0; j < bd.holes.length; j++) {
+        const c = bd.holes[j].color;
+        cc[c] = (cc[c] || 0) + 1;
+      }
+      const cnames = Object.keys(cc);
+      for (let k = 0; k < cnames.length; k++) {
+        if (cc[cnames[k]] > sameCap) {
+          errors.push(bd.id + ' same-color ' + cnames[k] + ' x' + cc[cnames[k]] +
+            ' exceeds per-board cap ' + sameCap);
         }
       }
     }

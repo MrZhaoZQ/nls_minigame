@@ -45,12 +45,22 @@ function bootstrap() {
   const info = Platform.getSystemInfo();
   const canvas = Platform.createCanvas();
 
+  // 冷启动清晰度校准：个别真机启动早期 getSystemInfoSync().pixelRatio 会偶发返回 1，
+  // 直接照它建画布会按逻辑分辨率渲染（全屏发虚），要等某次 onWindowResize 才自愈。
+  // 微信主画布首次 createCanvas 的出厂宽高即屏幕物理像素，用它反推真实 DPR 取较大者兜底。
+  let pixelRatio = info.pixelRatio || 1;
+  if (Platform.isWechat && Platform.isWechat() && canvas && canvas.width > 0 && info.width > 0) {
+    const native = canvas.width / info.width;
+    if (native >= 1 && native <= 4) pixelRatio = Math.max(pixelRatio, native);
+  }
+
   const app = {
     config: GameConfig,
     bus: new EventBus(),
-    screen: { width: info.width, height: info.height, pixelRatio: info.pixelRatio },
+    screen: { width: info.width, height: info.height, pixelRatio: pixelRatio },
     canvas: canvas,
-    ctx: null
+    ctx: null,
+    nativePixelRatio: pixelRatio
   };
 
   function setupCanvas() {
@@ -704,7 +714,11 @@ function bootstrap() {
 
   Platform.onWindowResize(() => {
     const info2 = Platform.getSystemInfo();
-    app.screen = { width: info2.width, height: info2.height, pixelRatio: info2.pixelRatio };
+    app.screen = {
+      width: info2.width,
+      height: info2.height,
+      pixelRatio: Math.max(info2.pixelRatio || 1, app.nativePixelRatio || 1)
+    };
     setupCanvas();
     camera.setScreen(info2.width, info2.height);
     capsuleRect = capsuleRectOf(info2.width);
