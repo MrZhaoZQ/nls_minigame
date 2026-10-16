@@ -42,18 +42,11 @@ class AdManager {
     this.levelShows = {};
   }
 
-  canShow(placement) {
-    const cfg = GameConfig.ad;
+  // 激励视频全部为用户主动触发的奖励点：不设冷却/日限/每关限次（产品决策 2026-10）。
+  // 并发防重入由 show() 的 pending 守卫负责；_grant 仍做计数仅作埋点，不参与闸门。
+  // 保留方法与签名，供 rewardProvider 双模式接口与结算/失败面板按钮预检调用。
+  canShow() {
     this.daily = SaveManager.getDailyAdInfo();
-    const now = this.now();
-    // 系统时钟回拨自愈：否则负差值恒小于冷却，广告位永久卡死
-    if (now < this.lastShowTs) this.lastShowTs = now;
-    if (now - this.lastShowTs < cfg.cooldownMs) return { ok: false, reason: 'cooldown' };
-    if (this.daily.count >= cfg.dailyLimit) return { ok: false, reason: 'dailyLimit' };
-    if (placement && placement.indexOf('fail') === 0) {
-      const used = this.levelShows[placement] || 0;
-      if (used >= cfg.perLevelLimit) return { ok: false, reason: 'perLevel' };
-    }
     return { ok: true };
   }
 

@@ -159,9 +159,9 @@ Screw 状态（ScrewManager.ScrewState）：
 
 | 项 | 规格 |
 |---|---|
-| 次数 | 每关 1 次（`hintUsed`），用过即置灰路径并 Toast「本关提示已用过」 |
-| 消耗路由 | 金币足够（30，`economy.hintCost`）→ `wx.showModal` 弹窗确认；金币不足 → 回落奖励通道（看视频/邀好友） |
-| 目标选择 | 当前视角**可见**的首个 `unlocked` 螺丝（投影在屏幕内 + 视线未被其他木板 OBB 遮挡，`ScrewRaycaster.visibleUnlocked`）；当前视角无可见目标时不消耗、不发放，Toast 引导玩家先旋转视角 |
+| 次数 | 每关**免费 1 次**（`hintUsed`）；用完后按钮保持常亮，点击先弹 `wx.showModal` 确认（「本关免费提示已用完，看视频再获得 1 次提示？」，取消则无任何后续），确认后走奖励通道（`hint_more` 位）**看视频即追加 1 次、可反复追加** |
+| 消耗路由 | 免费额度内：金币足够（30，`economy.hintCost`）→ `wx.showModal` 弹窗确认；金币不足 → 奖励通道（看视频/邀好友）。免费额度外：`wx.showModal` 确认 → 奖励通道 |
+| 目标选择 | 可见螺丝中按**可见度评分**择优（`GameManager._bestHintTarget`：屏幕居中优先 + 高层优先，投影在屏幕内 + 视线未被其他木板 OBB 遮挡，`ScrewRaycaster.visibleUnlocked`）；每次提示都按**当前局面**实时重选，局面随拆除变化，追加提示不贬值；当前视角无可见目标时不消耗、不发放，Toast 引导玩家先旋转视角 |
 | 表现 | 高亮提亮 + 金色脉冲描边（渲染层）+ `HintMarker` 金环波纹 + 悬浮箭头；**持续到目标螺丝被点击**（收集后自动清除） |
 | 卡关检测 | `playing` 且 60s 无任何进度（收集/撤销）→ Toast「卡住了？试试上方的提示按钮」，每关仅一次 |
 
@@ -391,17 +391,15 @@ module.exports = {
 | `fail_undo` | 失败面板「撤回最后一步」 | +1 撤销配额并立即执行 |
 | `fail_clear` | 失败面板「移出 3 颗螺丝」 | 槽内**最早** 3 颗移出，状态恢复 `playing` |
 
-失败面板按 `canShow()` 结果**动态裁剪**按钮（频控中的项不展示），金币救援按钮仅在余额 ≥50 时出现。奖励未发放一律 Toast 兜底（频控/取消/加载失败各有文案）。
+失败面板广告救援按钮现**恒展示**（激励位已无频控闸门，`canShow` 恒过；share 回退模式仍按其频控裁剪），金币救援按钮仅在余额 ≥50 时出现。奖励未发放一律 Toast 兜底（busy/取消/加载失败各有文案）。
 
 ### 6.2 AdManager（激励视频）
 
 | 频控项 | 数值 |
 |---|---|
-| 冷启动禁弹 | **无**——激励与插屏均为自然停顿点触发且受间隔/胜利数闸门约束，不设冷启动窗口 |
-| 相邻间隔 | ≥45s（`cooldownMs`） |
-| 每日上限 | 15 次（`dailyLimit`，日计数每次 `canShow` 重新读盘，跨天翻滚） |
-| 单关上限 | `fail*` 位各 ≤2 次/关（`perLevelLimit`），换关清零 |
-| 并发保护 | 上一单未回调时的新请求直接拒绝（reason `busy` → Toast「上一个广告未结束」），防回调丢失 |
+| 冷启动禁弹 | **无**——激励与插屏均为自然停顿点触发，不设冷启动窗口 |
+| 冷却/日限/每关限 | **全部移除**（产品决策 2026-10）：激励视频是用户主动点击的奖励点，不设 `cooldownMs`/`dailyLimit`/`perLevelLimit`；`_grant` 仍记录时间戳/日计数/每关计数**仅作埋点**，不参与闸门 |
+| 并发保护 | 上一单未回调时的新请求直接拒绝（reason `busy` → Toast「上一个广告未结束」），防回调丢失——这是唯一保留的技术性闸门 |
 
 - 流程：`show()` → 失败自动 `load()` 重试一次 → `onClose.isEnded === true` 才发奖（跳过不发）；`onError` 静默降级并回调失败；
 - **mock 模式**：平台无该 API 或测试桩未提供时（`unitId` 现已填正式值），`show` 直接回调 `{rewarded: true, mock: true}`，全流程可玩。
@@ -635,7 +633,7 @@ node scripts/headlessPlaythrough.js   # 30 关无头打通（贪心玩家 + 救�
 | `collapse` | 坍塌串行/落地解锁时序/快照撤销/配额/败局恢复/坍塌板清栈 |
 | `levels` | **30 关逐个过校验器**、生成器 3 倍数性质、校验器四类反例 |
 | `bootstrap` | 无头端到端：bootstrap → 模拟点击通关 → 面板进下一关 |
-| `ad` | mock 发奖/无冷启动限制/冷却/每关限次/日限/真广告 isEnded/跳过不发 |
+| `ad` | mock 发奖/无冷启动限制/**无冷却无日限无每关限（计数仅埋点）**/真广告 isEnded/跳过不发/在播报错保奖励 |
 | `share` | 成功发奖/取消不发/冷却/单关限次/换关清零/标题模板 |
 | `audio` | 7 文件存在/<100KB/RIFF 单声道 22050Hz |
 | `ui` | 胶囊避让/按钮右缘对齐/帮助面板滚动与惯性/槽条安全区与对称留白/提示标记生命周期/重置 |
@@ -688,7 +686,7 @@ node scripts/headlessPlaythrough.js   # 30 关无头打通（贪心玩家 + 救�
 | 音效开关持久化 | 仅运行时状态 | 落 `SaveManager` 一键补 |
 | 异形板型投入关卡 | ✅ 已完成：`generator` 第 3 关起混入 `Board_L`/`Board_Gear`（概率约 0.35）+ yaw 错位旋转；footprint/孔位网格/遮挡核心区已同步校验器 | 观察难度曲线后微调 `shapeChance`/`yawChance` |
 | 自动聚焦镜头 | `focusOn()` 预留未接线 | 点击遮挡区时提示性转视角 |
-| 提示按钮常驻化 | 当前常驻可用（每关 1 次） | 若数据需要可改卡关 60s 才亮 |
+| 提示按钮常驻化 | ✅ 已升级：每关免费 1 次 + 用尽后看视频无限追加（`hint_more` 位），按钮常亮 | 观察追加提示的广告触发率/完成率再调 |
 | 无尽模式 | 未做 | 生成器现成，加循环 + 计分 + 广告复活 |
 | 物理坍塌 | 未做 | 原生路线无物理引擎，属 Cocos 迁移项（附录 C） |
 
@@ -717,7 +715,7 @@ node scripts/headlessPlaythrough.js   # 30 关无头打通（贪心玩家 + 救�
 > 微信小游戏纯 CommonJS 项目（无注释、数值集中 GameConfig）。请基于现有 `generator.generateLevel` / `validator.validate` 增加无尽模式：每通关一「波」生成下一关（关卡序号从 31 递增、难度按 STAGES 封顶后继续爬升：板数 +1、覆盖强度向 0.9 收敛），失败即结算；计分 = 累计收集数；不写存档进度（独立 score 键，前缀 `screwmaster_`）。入口复用选关菜单加一个按钮。附 Node 单测：无限生成 200 波全部过校验器。
 
 ### 模板 2：广告频控调参 / 新增奖励位
-> 激励、插屏、原生模板三形态均已接入（`mode:'ad'`）。调频控只改 `GameConfig.ad`（含 `inter*` 插屏闸门与 `template*` 横幅参数）；新增奖励位需：① 调用处走 `rewardProvider.show(placement, cb)` 同接口；② 若属失败救援类（`fail` 前缀）自动受每关限次约束，需独立每日限次的参照旧 `daily_coins` 模式（SaveManager 日计数 + 按钮条件展示）；③ 文案随 `rewardWord` 双模式切换；④ `test/ad.test.js` 补频控用例。不要动 `ShareManager` 代码（保留回退能力）。新增横幅展示面须确认不遮挡交互控件，并同步 `LevelSelect.bottomReserve` 类让位逻辑。
+> 激励、插屏、原生模板三形态均已接入（`mode:'ad'`）。**激励位无频控**（产品决策：用户主动触发的奖励点不设冷却/日限/每关限），插屏频控只改 `GameConfig.ad.inter*`、横幅参数改 `template*`；新增奖励位需：① 调用处走 `rewardProvider.show(placement, cb)` 同接口；② 如确需限次，参照旧 `daily_coins` 模式在**调用侧**自建闸门（SaveManager 日计数 + 按钮条件展示），AdManager 层不再提供；③ 文案随 `rewardWord` 双模式切换；④ `test/ad.test.js` 补用例。不要动 `ShareManager` 代码（保留回退能力，share 模式频控独立在 `GameConfig.share`）。新增横幅展示面须确认不遮挡交互控件，并同步 `LevelSelect.bottomReserve` 类让位逻辑。
 
 ### 模板 3：新增一个异形板型进生成器
 > 当前生成器已混入 `Board_L`（arm 1.2×1.2）与 `Board_Gear`（半径 1.6），孔位网格、`prefabHalfExtents`/`boardFootprint`、校验器 `holeInFootprint` 均已按 prefab 分支。新增板型需：① `MeshBuilder` 加 `buildXxxMesh`（法线朝外！）；② `LevelLoader.buildBoardMesh` 加 prefab 分支；③ `generator` 的 `PREFABS`/`prefabHalfExtents`/`holeGridOf` 各加一支；④ `validator.holeInFootprint` 同步 footprint 判定；⑤ `buildLevels` 重出 30 关后 `node test/run.js` 与 `headlessPlaythrough` 必须全绿。
@@ -749,8 +747,7 @@ const GameConfig = {
   match: { needCount: 3 },
   collapse: { warnTime: 0.25, fallTime: 0.5, rotMin: 15, rotMax: 30,
               fallDist: 2.5, queueGap: 0.2 },
-  ad: { unitId: 'adunit-5d823507f82ee7ab', mode: 'ad', cooldownMs: 45000, dailyLimit: 15,
-        perLevelLimit: 2,
+  ad: { unitId: 'adunit-5d823507f82ee7ab', mode: 'ad',   // 激励位无频控（计数仅埋点）
         interUnitId: 'adunit-d11de76248f20c6a',
         interCooldownMs: 90000, interDailyLimit: 8, interProtectedLevels: 1,
         interWinGap: 2,

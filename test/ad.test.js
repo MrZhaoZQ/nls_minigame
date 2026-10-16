@@ -33,44 +33,40 @@ test('rewarded ads are user-initiated: no cold-start block', () => {
   Platform.inject(null);
 });
 
-test('cooldown blocks consecutive ads', () => {
+test('rewarded shows have no cooldown: consecutive grants always allowed', () => {
   const { ad, setClock } = setup();
-  let got = null;
-  ad.show('win_double', r => { got = r; });
-  assert(got.rewarded);
-  const second = ad.canShow('win_double');
-  assertEq(second.ok, false);
-  assertEq(second.reason, 'cooldown');
-  setClock(ad.lastShowTs + GameConfig.ad.cooldownMs + 100);
-  const third = ad.canShow('win_double');
-  assertEq(third.ok, true);
-  Platform.inject(null);
-});
-
-test('per-level limit for fail placements', () => {
-  const { ad, setClock } = setup();
-  for (let i = 0; i < GameConfig.ad.perLevelLimit; i++) {
-    ad.show('fail_undo', () => {});
-    setClock(ad.lastShowTs + GameConfig.ad.cooldownMs + 10);
+  for (let i = 0; i < 5; i++) {
+    assertEq(ad.canShow('win_double').ok, true, 'no cooldown gate');
+    let got = null;
+    ad.show('win_double', r => { got = r; });
+    assert(got.rewarded, 'grant #' + i);
+    setClock(ad.lastShowTs + 1);  // 仅过 1ms，旧冷却下必被拦
   }
-  const gate = ad.canShow('fail_undo');
-  assertEq(gate.ok, false);
-  assertEq(gate.reason, 'perLevel');
-  const winGate = ad.canShow('win_double');
-  assertEq(winGate.ok, true);
+  assert(ad.lastShowTs > 0, 'grant timestamp still tracked for analytics');
   Platform.inject(null);
 });
 
-test('daily limit enforced', () => {
+test('fail placements have no per-level cap', () => {
+  const { ad } = setup();
+  for (let i = 0; i < 6; i++) {
+    ad.show('fail_undo', () => {});
+    assertEq(ad.canShow('fail_undo').ok, true, 'unlimited per-level rescues');
+  }
+  assertEq(ad.levelShows['fail_undo'], 6, 'per-level count still tracked');
+  Platform.inject(null);
+});
+
+test('daily count is tracked for analytics but never blocks', () => {
   const { ad } = setup();
   Platform.storage.set('screwmaster_adcount', JSON.stringify({
     date: new Date(Date.now()).toDateString(),
-    count: GameConfig.ad.dailyLimit,
-    lastShowTs: 0
+    count: 999,
+    lastShowTs: Date.now()
   }));
-  const gate = ad.canShow('hint');
-  assertEq(gate.ok, false);
-  assertEq(gate.reason, 'dailyLimit');
+  assertEq(ad.canShow('hint').ok, true, 'extreme daily count must not gate');
+  let got = null;
+  ad.show('hint', r => { got = r; });
+  assert(got.rewarded, 'show still granted past any historical daily limit');
   Platform.inject(null);
 });
 

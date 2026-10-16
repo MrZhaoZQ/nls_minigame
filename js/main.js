@@ -234,7 +234,7 @@ function bootstrap() {
     const screw = game.requestHint();
     if (!screw) return;
     game.hintUsed = true;
-    topBar.hintEnabled = false;
+    topBar.hintEnabled = true;  // 保持常亮：再点走「看视频追加提示」
     renderer.highlightScrewId = screw.node.id;
     hintMarker.setTarget(screw);
   }
@@ -292,7 +292,7 @@ function bootstrap() {
     resultPanel.nextLabel = levelId >= total ? '再玩一次' : '下一关';
     rewardProvider.setLevel(levelId);
     app.lastProgressAt = Platform.now();
-    topBar.hintEnabled = false;
+    topBar.hintEnabled = true;
     hintMarker.clear();
     renderer.highlightScrewId = null;
     input.setLocked(false);
@@ -571,12 +571,31 @@ function bootstrap() {
     }
     if (hit === 'hint') {
       const eco = GameConfig.economy;
-      if (game.hintUsed) {
-        toast.show('本关提示已用过');
-        return;
-      }
       if (!game.requestHint()) {
         toast.show('当前视角看不到可拆的螺丝，先旋转视角试试');
+        return;
+      }
+      if (game.hintUsed) {
+        // 本关免费提示已用：先弹框确认，确认后看视频追加一次（可反复追加）；
+        // 取消则关闭弹框不走任何后续逻辑。
+        // doHint 每次都按当前局面重选「视角最稳螺丝」，二次提示不贬值
+        Platform.showModal({
+          title: '提示',
+          content: '本关免费提示已用完，' + rewardWord + '再获得 1 次提示？',
+          confirmText: '确定',
+          cancelText: '取消',
+          success: (res) => {
+            if (!res.confirm) return;
+            if (!game.requestHint()) {
+              toast.show('当前视角看不到可拆的螺丝，先旋转视角试试');
+              return;
+            }
+            rewardProvider.show('hint_more', (r) => {
+              if (!r.rewarded) { rewardFailToast(r); return; }
+              doHint();
+            });
+          }
+        });
         return;
       }
       if (SaveManager.getCoins() >= eco.hintCost) {
@@ -816,8 +835,8 @@ function bootstrap() {
     setTemplateSurface(templateSurface);
     if (game.state === 'win') app.winBannerTime += dt;
 
-    topBar.hintEnabled = !game.hintUsed;
-    if (game.state === 'playing' && !game.hintUsed && !app.stuckHinted &&
+    topBar.hintEnabled = true;  // 免费用完后仍常亮：点击走「看视频追加提示」
+    if (game.state === 'playing' && !app.stuckHinted &&
         !tutorial.active && !app.pausedReturn && !isFrozen()) {
       if (Platform.now() - app.lastProgressAt > 60000) {
         app.stuckHinted = true;

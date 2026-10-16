@@ -522,3 +522,63 @@ test('level select hosts the persistent template banner', () => {
   Platform.inject(null);
   delete require.cache[require.resolve('../js/main')];
 });
+test('ad-funded extra hints keep working after the free one', () => {
+  let clock = 0;
+  const frames = [];
+  const Platform = require('../js/platform/Platform');
+  const SaveManager = require('../js/core/SaveManager');
+  const mock = Platform.createMockPlatform({
+    createCanvas: () => null,
+    raf: (cb) => { frames.push(cb); return frames.length; },
+    now: () => clock
+  });
+  Platform.inject(mock);
+  delete require.cache[require.resolve('../js/main')];
+  const app = require('../js/main')();
+  const stepFrames = (n, dtMs) => {
+    for (let i = 0; i < n; i++) { clock += dtMs; const cb = frames.shift(); if (cb) cb(clock); }
+  };
+  const tapAt = (x, y) => {
+    mock.touchHandlers.start.forEach(h => h({ touches: [{ identifier: 0, clientX: x, clientY: y }], changedTouches: [{ identifier: 0, clientX: x, clientY: y }] }));
+    mock.touchHandlers.end.forEach(h => h({ touches: [], changedTouches: [{ identifier: 0, clientX: x, clientY: y }] }));
+  };
+
+  stepFrames(2, 16);
+  SaveManager.setTutorialDone();
+  app.tutorial.done();
+  app.startLevelById(2);
+  stepFrames(2, 16);
+  const game = app.game;
+  game.hintUsed = true;
+  app.hintMarker.clear();
+
+  const hintBtn = app.topBar.buttons.find(b => b.id === 'hint');
+  assert(app.topBar.isEnabled('hint'), 'hint button stays lit for ad-funded extras');
+
+  let hintModals = 0;
+  mock.showModal = (opts) => {
+    hintModals++;
+    assert(opts.content.indexOf('再获得 1 次提示') >= 0, 'confirm copy offers one extra hint');
+    opts.success({ confirm: true, cancel: false });
+  };
+  tapAt(hintBtn.x, hintBtn.y);
+  stepFrames(2, 16);
+  assertEq(hintModals, 1, 'extra hint must ask for confirmation first');
+  assert(app.hintMarker.target, 'confirmed → ad-funded extra hint placed a marker');
+
+  app.hintMarker.clear();
+  mock.showModal = (opts) => { hintModals++; opts.success({ confirm: false, cancel: true }); };
+  tapAt(hintBtn.x, hintBtn.y);
+  stepFrames(2, 16);
+  assertEq(hintModals, 2, 'cancel path still opens the modal');
+  assertEq(app.hintMarker.target, null, 'cancelled confirm must not run any ad/hint logic');
+
+  mock.showModal = (opts) => { hintModals++; opts.success({ confirm: true, cancel: false }); };
+  tapAt(hintBtn.x, hintBtn.y);
+  stepFrames(2, 16);
+  assert(app.hintMarker.target, 'extra hints are repeatable after a cancel');
+  assertEq(app.toast.msg, '', 'no "already used" toast on the ad path');
+
+  Platform.inject(null);
+  delete require.cache[require.resolve('../js/main')];
+});

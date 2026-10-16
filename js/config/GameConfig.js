@@ -11,8 +11,9 @@ const GameConfig = {
   match: { needCount: 3 },
   collapse: { warnTime: 0.25, fallTime: 0.5, rotMin: 15, rotMax: 30,
               fallDist: 2.5, queueGap: 0.2 },
-  ad: { unitId: 'adunit-5d823507f82ee7ab', mode: 'ad', cooldownMs: 45000, dailyLimit: 15,
-        perLevelLimit: 2,
+  // 激励视频为用户主动奖励点：无冷却/日限/每关限（闸门逻辑已从 AdManager 移除）；
+  // 插屏为系统主动展示，频控保留（inter* 组）。
+  ad: { unitId: 'adunit-5d823507f82ee7ab', mode: 'ad',
         interUnitId: 'adunit-d11de76248f20c6a',
         interCooldownMs: 90000, interDailyLimit: 8, interProtectedLevels: 1,
         interWinGap: 2,
