@@ -296,11 +296,73 @@ test('requestHint targets camera-visible screw', () => {
   });
   game.startLevel(data);
   const hint = game.requestHint();
-  assert(hint, 'a visible hint target exists');
-  assertEq(hint.boardId, 'b2', 'hint must skip the camera-occluded first screw');
+  assert(hint, 'a hint target exists');
+  assertEq(hint.boardId, 'b2', 'hint must skip the core-blocked lower screw');
 
   camera.updateFrom(0, 0.78, 6, [0, 0.3, 20], null);
-  assertEq(game.requestHint(), null, 'no visible screw means no hint target');
+  assertEq(game.requestHint().boardId, 'b2',
+    'global candidate set ignores the current view (camera refocuses on show)');
+});
+
+test('requestHint returns null when nothing is unlocked-and-clickable', () => {
+  const scene = new SceneGraph();
+  const tweens = new TweenManager();
+  const screwManager = new ScrewManager(tweens);
+  const cam = new Camera(375, 667);
+  cam.updateFrom(0, 0.78, 6, [0, 0.3, 0], null);
+  const data = {
+    id: 9, name: 'allcov', colors: ['red'], slotCount: 5, gridSize: 5,
+    boards: [
+      { id: 'b1', prefab: 'Board_Single', position: [0, 0, 0], rotation: [0, 0, 0],
+        holes: [
+          { id: 'h1', pos: [0, 0, 0], color: 'red', coveredBy: ['b2'] },
+          { id: 'h2', pos: [0.9, 0, 0], color: 'red', coveredBy: ['b2'] },
+          { id: 'h3', pos: [-0.9, 0, 0], color: 'red', coveredBy: ['b2'] }
+        ] },
+      { id: 'b2', prefab: 'Board_Single', position: [0, 1, 0], rotation: [0, 0, 0], holes: [] }
+    ]
+  };
+  const game = new GameManager({
+    bus: new EventBus(), scene: scene, camera: cam, tweens: tweens,
+    screwManager: screwManager, slotManager: new SlotManager(),
+    raycaster: new ScrewRaycaster(cam), input: null
+  });
+  game.startLevel(data);
+  assertEq(game.requestHint(), null, 'all screws locked → no hint, toast path');
+});
+
+test('focusHint glides the camera onto an off-view target and raises pitch', () => {
+  const CameraController = require('../js/camera/CameraController');
+  const scene = new SceneGraph();
+  const tweens = new TweenManager();
+  const screwManager = new ScrewManager(tweens);
+  const cam = new Camera(375, 667);
+  const camCtrl = new CameraController(cam);
+  const data = {
+    id: 9, name: 'far', colors: ['red'], slotCount: 5, gridSize: 8,
+    boards: [
+      { id: 'b1', prefab: 'Board_Single', position: [-3, 0, -3], rotation: [0, 0, 0],
+        holes: [{ id: 'h1', pos: [0, 0, 0], color: 'red' }] }
+    ]
+  };
+  const game = new GameManager({
+    bus: new EventBus(), scene: scene, camera: cam, camCtrl: camCtrl, tweens: tweens,
+    screwManager: screwManager, slotManager: new SlotManager(),
+    raycaster: new ScrewRaycaster(cam), input: null
+  });
+  game.startLevel(data);
+  camCtrl.setTarget([0, 0, 0]);
+  camCtrl.update(1);
+  const hint = game.requestHint();
+  assert(hint, 'off-view screw is a valid global hint candidate');
+  game.focusHint(hint);
+  assert(camCtrl.targetGoal, 'focus goal armed');
+  for (let i = 0; i < 300; i++) camCtrl.update(0.016);
+  assert(Math.abs(camCtrl.target[0] + 3) < 0.05 && Math.abs(camCtrl.target[2] + 3) < 0.05,
+    'camera target converged onto the screw, got ' +
+    camCtrl.target[0].toFixed(2) + ',' + camCtrl.target[2].toFixed(2));
+  assert(Math.abs(camCtrl.pitch - camCtrl.pitchMax) < 0.5, 'pitch raised to the least-occluded angle');
+  assertEq(camCtrl.isMoving(), false, 'glide finished, main loop may idle again');
 });
 
 section('GameManager');
@@ -438,4 +500,72 @@ test('collapse chain from a previous level cannot unlock the new level', () => {
   for (let i = 0; i < 200; i++) g.tweens.update(0.016);
   const h1 = g.game.screwManager.screws.find(s => s.holeId === 'h1');
   assertEq(h1.state, 'locked', 'stale onBoardGone must not unlock fresh-level coverage');
+});
+
+test('hint completes an almost-matched color instead of the prettiest screw', () => {
+  function buildGame(slotsPrefill) {
+    const scene = new SceneGraph();
+    const tweens = new TweenManager();
+    const screwManager = new ScrewManager(tweens);
+    const slotManager = new SlotManager();
+    const data = {
+      id: 9, name: 'synergy', colors: ['red', 'blue'], slotCount: 5, gridSize: 6,
+      boards: [
+        // 偏离屏幕中心的蓝板：可见度略差，但槽里已有 2 蓝——点它即三连
+        { id: 'bEdge', prefab: 'Board_Single', position: [-0.8, 0, 0], rotation: [0, 0, 0], holes: [{ id: 'h1', pos: [0, 0, 0], color: 'blue' }] },
+        // 屏幕中心的红板：可见度满分，但槽内无红
+        { id: 'bCenter', prefab: 'Board_Single', position: [0, 0, 0], rotation: [0, 0, 0], holes: [{ id: 'h2', pos: [0, 0, 0], color: 'red' }] }
+      ]
+    };
+    const cam = new Camera(375, 667);
+    cam.updateFrom(0, 0.78, 6, [0, 0.3, 0], null);
+    const game = new GameManager({
+      bus: new EventBus(), scene: scene, camera: cam, tweens: tweens,
+      screwManager: screwManager, slotManager: slotManager,
+      raycaster: new ScrewRaycaster(cam), input: null
+    });
+    game.startLevel(data);
+    for (let i = 0; i < slotsPrefill; i++) slotManager.add('blue');
+    return game;
+  }
+
+  const g1 = buildGame(2);
+  assertEq(g1.requestHint().color, 'blue',
+    'with 2 blues slotted, hint must point at the 3rd blue even at screen edge');
+
+  const g2 = buildGame(1);
+  assertEq(g2.requestHint().color, 'blue',
+    'with 1 blue slotted, continuing the pair beats a fresh color');
+
+  const g3 = buildGame(0);
+  assertEq(g3.requestHint().boardId, 'bCenter',
+    'empty slot keeps the visibility-first behaviour');
+});
+
+test('hint refuses fresh colors when only one slot is free', () => {
+  const scene = new SceneGraph();
+  const tweens = new TweenManager();
+  const screwManager = new ScrewManager(tweens);
+  const slotManager = new SlotManager();
+  const data = {
+    id: 9, name: 'tight', colors: ['red', 'blue', 'green', 'yellow', 'purple'], slotCount: 5, gridSize: 6,
+    boards: [
+      { id: 'b1', prefab: 'Board_Single', position: [0, 0, 0], rotation: [0, 0, 0],
+        holes: [{ id: 'h1', pos: [0, 0, 0], color: 'red' }, { id: 'h2', pos: [0.9, 0, 0], color: 'blue' }] }
+    ]
+  };
+  const cam = new Camera(375, 667);
+  cam.updateFrom(0, 0.78, 6, [0, 0.3, 0], null);
+  const game = new GameManager({
+    bus: new EventBus(), scene: scene, camera: cam, tweens: tweens,
+    screwManager: screwManager, slotManager: slotManager,
+    raycaster: new ScrewRaycaster(cam), input: null
+  });
+  game.startLevel(data);
+  slotManager.add('green'); slotManager.add('yellow'); slotManager.add('purple');
+  slotManager.add('green'); // 4/5 满，仅剩 1 空位；槽内 green 有 2 颗但场上无 green
+  // 场上只有 red/blue 可见（都是新色）：freeSlots=1 → 都吃 -1000，仍必须返回一个兜底目标而非 null
+  const hint = game.requestHint();
+  assert(hint, 'still returns a fallback target when every option is a fresh color');
+  assertEq(hint.boardId, 'b1');
 });

@@ -267,11 +267,33 @@ class GameManager {
     return { ok: true };
   }
 
+  // 提示 = 全候选最优解（不限当前视野）：所有「数据已解锁且几何可点」的螺丝参与评分，
+  // 屏幕外/被侧挡的目标也合法——展示时由 focusHint 自动转相机对齐。纯查询，无副作用。
   requestHint() {
     if (this.state !== 'playing') return null;
     const stamp = this.scene.beginFrame();
-    const visible = this.raycaster.visibleUnlocked(this.screwManager.screws, this.boards, stamp);
-    return this._bestHintTarget(visible, stamp);
+    return this._bestHintTarget(this._hintCandidates(stamp), stamp);
+  }
+
+  _hintCandidates(stamp) {
+    const out = [];
+    const screws = this.screwManager.screws;
+    for (let i = 0; i < screws.length; i++) {
+      const s = screws[i];
+      if (s.state !== 'unlocked') continue;
+      // 数据虽解锁、但仍在某上层板 core 投影内的「观察陷阱」不可点，不能拿来当提示
+      if (this.raycaster.isCoreBlocked && this.raycaster.isCoreBlocked(s, this.boardById, stamp)) continue;
+      out.push(s);
+    }
+    return out;
+  }
+
+  focusHint(entry) {
+    if (!this.camCtrl || !entry || !entry.node) return;
+    const stamp = this.scene.beginFrame();
+    const wp = entry.node.worldPos(stamp);
+    this.camCtrl.focusTarget([wp[0], wp[1], wp[2]]);
+    this.camCtrl.raisePitchForHint();
   }
 
   refreshHint(current) {
@@ -285,19 +307,57 @@ class GameManager {
   _bestHintTarget(visible, stamp) {
     if (visible.length === 0) return null;
     const cam = this.camera;
-    if (!cam || typeof cam.project !== 'function') return visible[0];
+
+    // 槽位协同（主项）：提示必须目标导向，优先引导凑/续同色三连，
+    // 防止连续提示把暂存槽塞满互不相干的新色导致卡死（与校验器贪心策略同源）。
+    const slots = this.slotManager ? this.slotManager.slots : [];
+    const capacity = this.slotManager ? this.slotManager.capacity : 7;
+    const slotCounts = {};
+    for (let i = 0; i < slots.length; i++) {
+      slotCounts[slots[i]] = (slotCounts[slots[i]] || 0) + 1;
+    }
+    const onBoard = {};
+    const screws = this.screwManager ? this.screwManager.screws : [];
+    for (let i = 0; i < screws.length; i++) {
+      const s = screws[i];
+      if (s.state === 'inslot') continue;
+      onBoard[s.color] = (onBoard[s.color] || 0) + 1;
+    }
+    const freeSlots = capacity - slots.length;
+
     let best = null;
     let bestScore = -Infinity;
     for (let i = 0; i < visible.length; i++) {
       const s = visible[i];
       if (!s.node || typeof s.node.worldPos !== 'function') continue;
       const wp = s.node.worldPos(stamp);
-      const scr = cam.project([wp[0], wp[1] + GameConfig.screw.headHeight * 0.5, wp[2]]);
-      if (!scr) continue;
-      const nx = (scr.x - cam.screenWidth / 2) / (cam.screenWidth / 2);
-      const ny = (scr.y - cam.screenHeight / 2) / (cam.screenHeight / 2);
-      const off = Math.min(1, nx * nx + ny * ny);
-      const score = (1 - off) * 10 + wp[1] * 1.2;
+
+      const cnt = slotCounts[s.color] || 0;
+      let synergy;
+      if (cnt >= 2) {
+        synergy = 1000;                                   // 点下即三连，绝对优先
+      } else if (cnt === 1) {
+        synergy = 100;                                    // 已在凑对，续同色进度
+      } else if (freeSlots <= 1) {
+        synergy = -1000;                                  // 仅剩 1 空位，严禁再引新色
+      } else {
+        synergy = (onBoard[s.color] || 0) >= 3 ? 0 : -50; // 新色但场上凑不齐整组则降权
+      }
+
+      // 次项：上层木板优先（每层权重压过满额居中 bonus，先拆上层打开局面）；
+      // 末项：当前视野居中 bonus——屏外目标为 0 分但**不弃选**（focusHint 会转相机），
+      // 同档位下免得无谓转屏。
+      let viewBonus = 0;
+      if (cam && typeof cam.project === 'function') {
+        const scr = cam.project([wp[0], wp[1] + GameConfig.screw.headHeight * 0.5, wp[2]]);
+        if (scr) {
+          const nx = (scr.x - cam.screenWidth / 2) / (cam.screenWidth / 2);
+          const ny = (scr.y - cam.screenHeight / 2) / (cam.screenHeight / 2);
+          const off = Math.min(1, nx * nx + ny * ny);
+          viewBonus = (1 - off) * 10;
+        }
+      }
+      const score = synergy + wp[1] * 6 + viewBonus;
       if (score > bestScore) { bestScore = score; best = s; }
     }
     return best || visible[0];

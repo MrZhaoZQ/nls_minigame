@@ -52,6 +52,21 @@ test('bootstrap + play level to win via simulated taps', () => {
   assertEq(app.helpPanel.visible, false, 'help blocked during tutorial');
   assert(app.topBar.allDisabled, 'topbar visually disabled during tutorial');
 
+  // 教学提示与游戏提示按钮互不影响：教程激活期间 hint 点击被完全吞掉
+  const hintBtn = app.topBar.buttons.find(b => b.id === 'hint');
+  let tutorialModals = 0;
+  mock.showModal = (opts) => { tutorialModals++; if (opts.success) opts.success({ confirm: true, cancel: false }); };
+  tapAt(hintBtn.x, hintBtn.y);
+  stepFrames(2, 16);
+  assertEq(tutorialModals, 0, 'hint button must not open any modal during tutorial');
+  assertEq(app.game.hintUsed, false, 'tutorial hint glow is independent of the hint button');
+  assertEq(app.topBar.isEnabled('hint'), false, 'hint button greyed while tutorial active');
+  app.tutorial.step = 2;
+  tapAt(hintBtn.x, hintBtn.y);
+  stepFrames(2, 16);
+  assertEq(tutorialModals, 0, 'confirm-bubble stage also swallows the hint button');
+  app.tutorial.step = 0;
+
   const scene = app.scene;
   const camera = app.camera;
   const game = app.game;
@@ -249,7 +264,7 @@ test('coin purchases go through modal confirm', () => {
   stepFrames(30, 20);
   assertEq(game.slotManager.count(), 1, 'collected again for cancel case');
 
-  const savedTarget = app.camCtrl.target.slice();
+  // 全局最优提示：目标被移出视野也照常成立，确认后相机自动转过去对齐
   app.camCtrl.setTarget([0, 0, -60]);
   stepFrames(1, 16);
   let hintModals = 0;
@@ -257,18 +272,14 @@ test('coin purchases go through modal confirm', () => {
   const hintBtn = app.topBar.buttons.find(b => b.id === 'hint');
   tapAt(hintBtn.x, hintBtn.y);
   stepFrames(2, 16);
-  assertEq(hintModals, 0, 'hint with nothing visible must not open modal');
-  assertEq(app.toast.msg, '当前视角看不到可拆的螺丝，先旋转视角试试');
-  assertEq(SaveManager.getCoins(), 80, 'invisible hint spends nothing');
-  app.camCtrl.setTarget(savedTarget);
-  stepFrames(1, 16);
-
-  tapAt(hintBtn.x, hintBtn.y);
-  stepFrames(2, 16);
-  assertEq(hintModals, 1, 'visible hint opens the confirm modal');
+  assertEq(hintModals, 1, 'off-view target still opens the confirm modal (global optimum)');
   assertEq(SaveManager.getCoins(), 50, 'hint bought via confirmed modal');
   assertEq(game.hintUsed, true, 'hint consumed');
   assert(app.hintMarker.target, 'hint marker placed');
+  assertEq(app.camCtrl.targetPitch, app.camCtrl.pitchMax, 'hint raises pitch to the least-occluded angle');
+  stepFrames(60, 16);
+  assert(Math.abs(app.camCtrl.target[2] + 60) > 30,
+    'camera glides back onto the hinted screw, target z=' + app.camCtrl.target[2].toFixed(1));
 
   mock.showModal = (opts) => opts.success({ confirm: false, cancel: true });
   tapAt(undoBtn.x, undoBtn.y);
@@ -578,6 +589,54 @@ test('ad-funded extra hints keep working after the free one', () => {
   stepFrames(2, 16);
   assert(app.hintMarker.target, 'extra hints are repeatable after a cancel');
   assertEq(app.toast.msg, '', 'no "already used" toast on the ad path');
+
+  Platform.inject(null);
+  delete require.cache[require.resolve('../js/main')];
+});
+
+test('poor-player hint asks for confirmation before the rewarded path', () => {
+  let clock = 0;
+  const frames = [];
+  const Platform = require('../js/platform/Platform');
+  const SaveManager = require('../js/core/SaveManager');
+  const mock = Platform.createMockPlatform({
+    createCanvas: () => null,
+    raf: (cb) => { frames.push(cb); return frames.length; },
+    now: () => clock
+  });
+  Platform.inject(mock);
+  delete require.cache[require.resolve('../js/main')];
+  const app = require('../js/main')();
+  const stepFrames = (n, dtMs) => {
+    for (let i = 0; i < n; i++) { clock += dtMs; const cb = frames.shift(); if (cb) cb(clock); }
+  };
+  const tapAt = (x, y) => {
+    mock.touchHandlers.start.forEach(h => h({ touches: [{ identifier: 0, clientX: x, clientY: y }], changedTouches: [{ identifier: 0, clientX: x, clientY: y }] }));
+    mock.touchHandlers.end.forEach(h => h({ touches: [], changedTouches: [{ identifier: 0, clientX: x, clientY: y }] }));
+  };
+  stepFrames(2, 16);
+  SaveManager.setTutorialDone();
+  app.tutorial.done();
+  app.startLevelById(2);
+  stepFrames(2, 16);
+  assert(SaveManager.getCoins() < 30, 'fixture is coin-poor');
+
+  const hintBtn = app.topBar.buttons.find(b => b.id === 'hint');
+  const modals = [];
+  mock.showModal = (opts) => { modals.push(opts); opts.success({ confirm: false, cancel: true }); };
+  tapAt(hintBtn.x, hintBtn.y);
+  stepFrames(2, 16);
+  assertEq(modals.length, 1, 'coin-poor hint must open a confirm modal');
+  assert(modals[0].content.indexOf('金币不足') >= 0, 'copy explains insufficient coins: ' + modals[0].content);
+  assertEq(app.hintMarker.target, null, 'cancel closes the modal and does nothing else');
+  assertEq(app.game.hintUsed, false);
+
+  mock.showModal = (opts) => { modals.push(opts); opts.success({ confirm: true, cancel: false }); };
+  tapAt(hintBtn.x, hintBtn.y);
+  stepFrames(2, 16);
+  assertEq(modals.length, 2);
+  assert(app.hintMarker.target, 'confirm → ad-funded hint placed (mock provider grants)');
+  assertEq(app.game.hintUsed, true, 'hint consumed via the rewarded path');
 
   Platform.inject(null);
   delete require.cache[require.resolve('../js/main')];

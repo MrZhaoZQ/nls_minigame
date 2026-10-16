@@ -235,6 +235,7 @@ function bootstrap() {
     if (!screw) return;
     game.hintUsed = true;
     topBar.hintEnabled = true;  // 保持常亮：再点走「看视频追加提示」
+    game.focusHint(screw);      // 目标不在视野中央时平滑转相机对齐（俯视 + 注视）
     renderer.highlightScrewId = screw.node.id;
     hintMarker.setTarget(screw);
   }
@@ -571,25 +572,20 @@ function bootstrap() {
     }
     if (hit === 'hint') {
       const eco = GameConfig.economy;
-      if (!game.requestHint()) {
-        toast.show('当前视角看不到可拆的螺丝，先旋转视角试试');
-        return;
-      }
+      // 全局候选下此分支理论不可达（最上层木板必有可点螺丝，且会自动转视角指过去），仅异常态静默兜底
+      if (!game.requestHint()) return;
       if (game.hintUsed) {
-        // 本关免费提示已用：先弹框确认，确认后看视频追加一次（可反复追加）；
+        // 本关提示已用：先弹框确认，确认后看视频追加一次（可反复追加）；
         // 取消则关闭弹框不走任何后续逻辑。
         // doHint 每次都按当前局面重选「视角最稳螺丝」，二次提示不贬值
         Platform.showModal({
           title: '提示',
-          content: '本关免费提示已用完，' + rewardWord + '再获得 1 次提示？',
+          content: '本关提示已用完，' + rewardWord + '再获得 1 次提示？',
           confirmText: '确定',
           cancelText: '取消',
           success: (res) => {
             if (!res.confirm) return;
-            if (!game.requestHint()) {
-              toast.show('当前视角看不到可拆的螺丝，先旋转视角试试');
-              return;
-            }
+            if (!game.requestHint()) return;
             rewardProvider.show('hint_more', (r) => {
               if (!r.rewarded) { rewardFailToast(r); return; }
               doHint();
@@ -612,9 +608,20 @@ function bootstrap() {
           }
         });
       } else {
-        rewardProvider.show('hint', (res) => {
-          if (!res.rewarded) { rewardFailToast(res); return; }
-          doHint();
+        // 金币不足：先弹框征求确认再走奖励通道；取消只关弹窗，无任何其它动作
+        Platform.showModal({
+          title: '提示',
+          content: '您的可用金币不足，' + rewardWord + '得 1 次提示？',
+          confirmText: '确定',
+          cancelText: '取消',
+          success: (res) => {
+            if (!res.confirm) return;
+            if (game.hintUsed || !game.requestHint()) return;
+            rewardProvider.show('hint', (r) => {
+              if (!r.rewarded) { rewardFailToast(r); return; }
+              doHint();
+            });
+          }
         });
       }
       return;

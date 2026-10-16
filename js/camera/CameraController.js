@@ -24,6 +24,7 @@ class CameraController {
     this.dist = 8;
     this.targetDist = 8;
     this.target = [0, 0, 0];
+    this.targetGoal = null;
 
     this.velYaw = 0;
     this.dragging = false;
@@ -34,12 +35,21 @@ class CameraController {
     this.shakeIntensity = 0;
   }
 
-  setTarget(pos) { this.target = pos.slice(); }
+  setTarget(pos) { this.target = pos.slice(); this.targetGoal = null; }
+
+  // 平滑移动注视点（提示聚焦用），走 update 的阻尼插值
+  focusTarget(pos) { this.targetGoal = pos.slice(); }
+
+  // 提示聚焦时抬到俯角上限：遮挡最少、目标必可见的角度
+  raisePitchForHint() {
+    this.targetPitch = Math.max(this.targetPitch, this.pitchMax);
+  }
 
   setView(yawDeg, pitchDeg, dist) {
     this.yaw = this.targetYaw = yawDeg;
     this.pitch = this.targetPitch = pitchDeg;
     this.dist = this.targetDist = dist;
+    this.targetGoal = null;
     this.velYaw = 0;
   }
 
@@ -90,6 +100,7 @@ class CameraController {
       Math.abs(this.targetPitch - this.pitch) > 0.01 ||
       Math.abs(this.targetDist - this.dist) > 0.01 ||
       Math.abs(this.velYaw) > 0.01 ||
+      this.targetGoal !== null ||
       this.shakeDuration > 0;
   }
 
@@ -107,6 +118,18 @@ class CameraController {
     this.yaw += (this.targetYaw - this.yaw) * k;
     this.pitch += (this.targetPitch - this.pitch) * k;
     this.dist += (this.targetDist - this.dist) * k;
+
+    if (this.targetGoal) {
+      const g = this.targetGoal;
+      this.target[0] += (g[0] - this.target[0]) * k;
+      this.target[1] += (g[1] - this.target[1]) * k;
+      this.target[2] += (g[2] - this.target[2]) * k;
+      const dx = g[0] - this.target[0], dy = g[1] - this.target[1], dz = g[2] - this.target[2];
+      if (dx * dx + dy * dy + dz * dz < 1e-4) {
+        this.target[0] = g[0]; this.target[1] = g[1]; this.target[2] = g[2];
+        this.targetGoal = null;
+      }
+    }
 
     let shakeOffset = null;
     if (this.shakeDuration > 0) {
