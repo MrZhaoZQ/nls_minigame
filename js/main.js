@@ -173,6 +173,7 @@ function bootstrap() {
   const failPanel = new FailPanel(info.width, info.height);
   failPanel.undoLabel = rewardWord + ' 撤回最后一步';
   failPanel.clearLabel = rewardWord + ' 移出3颗螺丝';
+  failPanel.retryLabel = rewardWord + ' 重新挑战';
   resultPanel.doubleLabel = rewardWord + ' 金币翻倍';
   const toast = new Toast();
   const tutorial = new Tutorial();
@@ -407,8 +408,12 @@ function bootstrap() {
     if (failHit) {
       failPanel.setPressed(failHit);
       if (failHit === 'retry') {
-        failPanel.hide();
-        startLevelById(app.currentLevelId);
+        // 重开本关为激励位：必须完整看完广告才重启（未看完/加载失败仅 toast，面板保持）
+        rewardProvider.show('fail_retry', (res) => {
+          if (!res.rewarded) { rewardFailToast(res); return; }
+          failPanel.hide();
+          startLevelById(app.currentLevelId);
+        });
       } else if (failHit === 'adUndo') {
         if (game.undoStack.size() === 0) {
           app.bus.emit('UNDO_DENIED', { reason: 'empty' });

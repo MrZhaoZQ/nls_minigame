@@ -18,6 +18,7 @@ class FailPanel {
     this.undoLabel = '看视频 撤回最后一步';
     this.clearLabel = '看视频 移出3颗螺丝';
     this.coinLabel = '花 50 金币 撤回一步';
+    this.retryLabel = '重新挑战';
   }
 
   resize(w, h) {
@@ -70,7 +71,7 @@ class FailPanel {
     if (this.coinOffered) {
       items.push({ id: 'coinUndo', label: this.coinLabel });
     }
-    items.push({ id: 'retry', label: '重新挑战', primary: true });
+    items.push({ id: 'retry', label: this.retryLabel, primary: true });
     const ph = 90 + items.length * (bh + 14) + 36;
     const x = (this.w - pw) / 2;
     const y = this.h * 0.5 - ph / 2 - 20;

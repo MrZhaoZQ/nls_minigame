@@ -641,3 +641,68 @@ test('poor-player hint asks for confirmation before the rewarded path', () => {
   Platform.inject(null);
   delete require.cache[require.resolve('../js/main')];
 });
+
+test('fail-panel retry requires finishing the rewarded video', () => {
+  let clock = 0;
+  const frames = [];
+  const Platform = require('../js/platform/Platform');
+  const SaveManager = require('../js/core/SaveManager');
+  let closeCb = null;
+  const fakeRewarded = {
+    onClose(cb) { closeCb = cb; },
+    onError() {},
+    show() { return Promise.resolve(); },
+    load() { return Promise.resolve(); }
+  };
+  const mock = Platform.createMockPlatform({
+    createCanvas: () => null,
+    createRewardedVideoAd: () => fakeRewarded,
+    raf: (cb) => { frames.push(cb); return frames.length; },
+    now: () => clock,
+    storage: {
+      screwmaster_tutorial: '1',
+      screwmaster_progress: JSON.stringify({ unlockedLevel: 3 })
+    }
+  });
+  Platform.inject(mock);
+  delete require.cache[require.resolve('../js/main')];
+  const app = require('../js/main')();
+  const stepFrames = (n, dtMs) => {
+    for (let i = 0; i < n; i++) { clock += dtMs; const cb = frames.shift(); if (cb) cb(clock); }
+  };
+  const tapAt = (x, y) => {
+    mock.touchHandlers.start.forEach(h => h({ touches: [{ identifier: 0, clientX: x, clientY: y }], changedTouches: [{ identifier: 0, clientX: x, clientY: y }] }));
+    mock.touchHandlers.end.forEach(h => h({ touches: [], changedTouches: [{ identifier: 0, clientX: x, clientY: y }] }));
+  };
+  stepFrames(2, 16);
+  app.startLevelById(2);
+  stepFrames(2, 16);
+
+  app.game.slotManager.slots = ['red', 'blue', 'yellow', 'green', 'purple'];
+  app.game.state = 'lose';
+  app.bus.emit('LEVEL_LOSE', { level: app.currentLevelId, slots: app.game.slotManager.slots.slice() });
+  stepFrames(2, 16);
+  assert(app.failPanel.visible, 'fail panel up');
+  const retryBtn = app.failPanel.buttons.find(b => b.id === 'retry');
+  assert(retryBtn && retryBtn.label.indexOf('重新挑战') >= 0, 'retry label carries the reward word: ' + (retryBtn && retryBtn.label));
+
+  tapAt(retryBtn.x, retryBtn.y);
+  stepFrames(2, 16);
+  assert(app.failPanel.visible, 'no restart before the video settles');
+  closeCb({ isEnded: false });
+  stepFrames(2, 16);
+  assert(app.failPanel.visible, 'skipping the video must not restart the level');
+  assert(app.toast.msg.indexOf('未完成') >= 0, 'skip explains why: ' + app.toast.msg);
+
+  tapAt(retryBtn.x, retryBtn.y);
+  stepFrames(2, 16);
+  assert(closeCb, 'second attempt re-armed the ad');
+  closeCb({ isEnded: true });
+  stepFrames(2, 16);
+  assertEq(app.failPanel.visible, false, 'finished video restarts the level');
+  assertEq(app.currentLevelId, 2, 'same level restarted');
+  assertEq(app.game.state, 'playing', 'fresh attempt is playable');
+
+  Platform.inject(null);
+  delete require.cache[require.resolve('../js/main')];
+});
