@@ -8,6 +8,7 @@ const SFX_LIST = [
 ];
 
 const BGM_ID = 'bgm_main';
+const BGM_VOLUME = 0.5;
 const WEB_LIVE_MAX = 12;
 
 class AudioManager {
@@ -117,7 +118,7 @@ class AudioManager {
     const bgm = Platform.createAudio('audio/bgm_main.wav');
     if (!bgm) return;
     bgm.loop = true;
-    bgm.volume = 0.35;
+    bgm.volume = BGM_VOLUME;
     this.bgm = bgm;
     if (bgm.onCanplay) {
       bgm.onCanplay(() => {
@@ -194,7 +195,7 @@ class AudioManager {
       }
       if (this._wa.createGain) {
         src._gain = this._wa.createGain();
-        src._gain.gain.value = 0.35;
+        src._gain.gain.value = BGM_VOLUME;
         src.connect(src._gain);
         src._gain.connect(this._wa.destination);
       } else {

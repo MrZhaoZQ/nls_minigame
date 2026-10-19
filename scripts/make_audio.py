@@ -186,9 +186,12 @@ def fft_lowpass(sig, cutoff, sr):
     return np.fft.irfft(spec, n=len(sig))
 
 
-def bgm_lofi():
+def bgm_chill():
+    """欢快轻松向：96bpm C 大调卡农进行（Cmaj7→Am7→Fmaj7→G7），
+    马蹄铁琴旋律 + 软拍手 backbeat + 摇摆 hat，点八分 echo 空间感，
+    RMS 感知响度归一 + 软限幅——明亮、律动、够响，同时不刺耳。"""
     sr = 22050
-    bpm = 75.0
+    bpm = 96.0
     beat = 60.0 / bpm
     bar = beat * 4
     bars = 5
@@ -204,94 +207,136 @@ def bgm_lofi():
         if st < m:
             out[st:end] += sig[:end - st]
 
-    def rhodes(notes, dur, amp=0.11):
-        s = np.zeros(seg(dur) + seg(0.5))
+    def echo(sig, delay_sec, feedback, mix):
+        # 简单反馈延迟（wet 侧低通防浑浊）：空间感/梦幻感的核心
+        d = seg(delay_sec)
+        total_len = len(sig) + d * 3
+        wet = np.zeros(total_len)
+        for k in range(1, 4):
+            wet[k * d:k * d + len(sig)] += sig * (feedback ** k)
+        wet = fft_lowpass(wet, 3200, sr)
+        mixed = np.zeros(total_len)
+        mixed[:len(sig)] += sig
+        return mixed + mix * wet
+
+    def rhodes(notes, dur, amp=0.105):
+        s = np.zeros(seg(dur) + seg(0.6))
         tt = np.arange(len(s)) / sr
-        env = np.minimum(1.0, tt / 0.08) * np.exp(-tt * 1.1)
+        env = np.minimum(1.0, tt / 0.06) * np.exp(-tt * 1.15)  # 快起音、有弹性
         for f in notes:
             osc = (np.sin(2 * np.pi * f * tt)
-                   + 0.35 * np.sin(2 * np.pi * 2 * f * tt)
-                   + 0.12 * np.sin(2 * np.pi * f * 1.006 * tt))
+                   + 0.30 * np.sin(2 * np.pi * 2 * f * tt)
+                   + 0.10 * np.sin(2 * np.pi * f * 1.004 * tt))
             s += amp * osc * env
-        return s
+        return fft_lowpass(s, 3800, sr)  # 明亮化
 
-    def bassnote(f, dur, amp=0.40):
+    def pluck(f, amp=0.12, dur=0.55):
+        # 马蹄铁琴/马林巴质感：基频 + 特征 4 倍泛音，快衰减，欢快跳跃
         s = np.zeros(seg(dur))
         tt = np.arange(len(s)) / sr
-        env = np.minimum(1.0, tt / 0.012) * np.exp(-tt * 2.3)
         return amp * (np.sin(2 * np.pi * f * tt)
-                      + 0.28 * np.sin(2 * np.pi * 2 * f * tt)) * env
+                      + 0.28 * np.sin(2 * np.pi * 4 * f * tt) * np.exp(-tt * 9)
+                      + 0.10 * np.sin(2 * np.pi * 2 * f * tt)) * np.exp(-tt * 5.2)
 
-    def kick(amp=0.30):
+    def pad(f, dur, amp=0.035):
+        # 极低音量的温暖垫底（root + 五度），只补厚度不抢明亮
+        s = np.zeros(seg(dur))
+        tt = np.arange(len(s)) / sr
+        fade_in = np.minimum(1.0, tt / 0.4)
+        fade_out = np.minimum(1.0, np.maximum(0.0, (dur - tt) / 0.5))
+        sigv = amp * (np.sin(2 * np.pi * f * tt)
+                      + 0.5 * np.sin(2 * np.pi * f * 1.5 * tt))
+        return fft_lowpass(sigv * fade_in * fade_out, 1100, sr)
+
+    def bassnote(f, dur, amp=0.34):
+        s = np.zeros(seg(dur))
+        tt = np.arange(len(s)) / sr
+        env = np.minimum(1.0, tt / 0.01) * np.exp(-tt * 2.2)  # 有弹跳的短促低音
+        return amp * (np.sin(2 * np.pi * f * tt)
+                      + 0.22 * np.sin(2 * np.pi * 2 * f * tt)) * env
+
+    def kick(amp=0.26):
         s = np.zeros(seg(0.30))
         tt = np.arange(len(s)) / sr
-        f = 44 + 42 * np.exp(-tt * 26)
+        f = 46 + 40 * np.exp(-tt * 24)
         phase = 2 * np.pi * np.cumsum(f) / sr
-        return lowpass(amp * np.sin(phase) * np.exp(-tt * 11), 220)
+        return lowpass(amp * np.sin(phase) * np.exp(-tt * 10), 200)
 
-    def brush(rng, dur=0.16, amp=0.09):
+    def clap(rng, amp=0.06, dur=0.11):
+        # 软拍手：2~4.5kHz 带通噪声簇，backbeat 支撑欢快律动但不刺耳
         s = np.zeros(seg(dur))
         nz = rng.uniform(-1, 1, len(s))
         tt = np.arange(len(s)) / sr
-        body = lowpass(nz, 3200) - lowpass(nz, 650)
-        return amp * body * np.exp(-tt * 20)
+        body = lowpass(nz, 4500) - lowpass(nz, 2000)
+        grain = 1.0 + 0.6 * np.sin(2 * np.pi * 47 * tt)
+        return amp * body * grain * np.exp(-tt * 26)
 
-    def hat(rng, amp=0.045, dur=0.045):
+    def hat(rng, amp=0.035, dur=0.05):
         s = np.zeros(seg(dur))
         nz = rng.uniform(-1, 1, len(s))
         tt = np.arange(len(s)) / sr
-        hp = nz - lowpass(nz, 5200)
-        return amp * hp * np.exp(-tt * 130)
+        hp = nz - lowpass(nz, 5600)
+        return amp * hp * np.exp(-tt * 120)
 
-    def bell(f, amp=0.08, dur=1.2):
-        s = np.zeros(seg(dur))
-        tt = np.arange(len(s)) / sr
-        return amp * (np.sin(2 * np.pi * f * tt) * np.exp(-tt * 2.6)
-                      + 0.30 * np.sin(2 * np.pi * 2.003 * f * tt) * np.exp(-tt * 5.5))
-
+    # C 大调卡农进行：明亮、有推动力、无忧伤下行
     chords = [
-        (87.31, [174.61, 220.00, 261.63, 329.63]),
-        (82.41, [164.81, 196.00, 246.94, 293.66]),
-        (73.42, [146.83, 174.61, 220.00, 261.63]),
-        (65.41, [130.81, 164.81, 196.00, 246.94])
+        (65.41, [130.81, 164.81, 196.00, 246.94]),   # Cmaj7
+        (55.00, [110.00, 130.81, 164.81, 196.00]),   # Am7
+        (87.31, [174.61, 220.00, 261.63, 329.63]),   # Fmaj7
+        (49.00, [98.00, 123.47, 146.83, 174.61])     # G7 → 属功能回 C，转圈 bright
     ]
 
     drum_rng = np.random.RandomState(9)
+    dotted = beat * 0.75  # 点八分延迟
     for b in range(bars):
         root, notes = chords[b % 4]
         t0 = b * bar
-        place(rhodes(notes, bar), t0)
-        place(bassnote(root, beat * 0.9), t0)
-        place(bassnote(root * 1.498, beat * 0.7), t0 + 2.5 * beat)
+        place(echo(rhodes(notes, bar), dotted, 0.26, 0.4), t0)
+        place(pad(root * 2, bar), t0)
+        place(bassnote(root, beat * 0.8), t0)                 # oom
+        place(bassnote(root * 1.498, beat * 0.6), t0 + 1.5 * beat)  # pump（更跳跃）
+        place(bassnote(root, beat * 0.8), t0 + 2 * beat)
+        place(bassnote(root * 1.498, beat * 0.6), t0 + 3.5 * beat)
         place(kick(), t0)
-        place(kick(0.22), t0 + 2 * beat)
-        place(brush(drum_rng), t0 + beat)
-        place(brush(drum_rng, 0.14, 0.06), t0 + 3 * beat)
-        for k in range(8):
+        place(kick(0.18), t0 + 2 * beat)
+        place(clap(drum_rng), t0 + beat)                       # backbeat 2
+        place(clap(drum_rng, 0.045), t0 + 3 * beat)            # backbeat 4
+        for k in range(8):                                     # 摇摆 8 分 hat
             off = k * beat / 2 + (beat / 6 if k % 2 else 0)
-            place(hat(drum_rng, 0.05 if k % 2 == 0 else 0.032), t0 + off)
+            place(hat(drum_rng, 0.038 if k % 2 == 0 else 0.024), t0 + off)
 
+    # 五声跳跃旋律（C-D-E-G-A + 属音 B），起伏上行、末小节回落循环
     melody = [
-        (0, 2.5, 659.26, 0.085),
-        (1, 0.5, 587.33, 0.070),
-        (1, 3.0, 493.88, 0.075),
-        (2, 1.5, 440.00, 0.070),
-        (3, 2.0, 392.00, 0.070),
-        (3, 3.5, 523.25, 0.080)
+        (0, 1.5, 659.26, 0.115),   # E5
+        (0, 3.0, 783.99, 0.105),   # G5
+        (1, 0.5, 880.00, 0.110),   # A5
+        (1, 2.5, 783.99, 0.100),   # G5
+        (1, 3.5, 659.26, 0.095),   # E5
+        (2, 1.0, 523.25, 0.100),   # C5
+        (2, 2.5, 587.33, 0.100),   # D5
+        (2, 3.5, 659.26, 0.105),   # E5
+        (3, 0.5, 783.99, 0.110),   # G5
+        (3, 1.5, 880.00, 0.115),   # A5
+        (3, 2.5, 783.99, 0.100),   # G5
+        (3, 3.5, 659.26, 0.095)    # E5 回落衔接循环
     ]
     for bpos, beatpos, f, amp in melody:
-        place(bell(f, amp), bpos * bar + beatpos * beat)
+        place(echo(pluck(f, amp), dotted, 0.26, 0.38), bpos * bar + beatpos * beat)
 
     rng = np.random.RandomState(42)
-    hiss = fft_lowpass(rng.uniform(-1, 1, m), 7000, sr) * 0.0035
-    pops = np.zeros(m)
-    idx = rng.choice(m, size=int(bars * bar * 3), replace=False)
-    pops[idx] = rng.uniform(-1, 1, len(idx)) * 0.025
-    pops = fft_lowpass(pops, 3000, sr)
-    out += hiss + pops
+    hiss = fft_lowpass(rng.uniform(-1, 1, m), 6000, sr) * 0.0015  # 极轻底噪，pops 移除
+
+    out += hiss
+    out = fft_lowpass(out, 12000, sr)  # 只削极高频毛刺，保留明亮
+
+    # 感知响度：RMS 归一到目标后 tanh 软限——稀疏编制也一样够响
+    rms = float(np.sqrt(np.mean(out ** 2)))
+    if rms > 1e-6:
+        out = out * (0.26 / rms)
+    out = np.tanh(out * 1.15)
 
     L = seg(4 * bar)
-    xf = seg(1.0)
+    xf = seg(1.2)
     u = np.linspace(0, 1, xf)
     out[:xf] = out[:xf] * u + out[L:L + xf] * (1 - u)
     return out[:L], sr
@@ -308,8 +353,8 @@ def main():
     write_wav('sfx_warn', sfx_warn())
     write_wav('sfx_win', sfx_win())
     write_wav('sfx_lose', sfx_lose())
-    sig, sr = bgm_lofi()
-    write_wav('bgm_main', sig, sr=sr, peak=0.55)
+    sig, sr = bgm_chill()
+    write_wav('bgm_main', sig, sr=sr, peak=0.92)  # 内部已 RMS 归一 + 软限，写盘拉满
 
 
 if __name__ == '__main__':

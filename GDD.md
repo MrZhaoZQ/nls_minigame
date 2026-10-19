@@ -335,7 +335,7 @@ module.exports = {
 
 ### 5.1 音频清单（9 音效 + 1 BGM，全部程序化合成）
 
-> 资产由 `scripts/make_audio.py`（numpy）合成：**统一 22050Hz 单声道 16bit WAV**（BGM 同为 22050，勿用其他采样率——安卓 InnerAudioContext 对非常规采样率 WAV 兼容差）；音效各 <100KB，BGM 12.8s 无缝循环 ≈551KB（预算 600KB）；`test/audio.test.js` 守护「10 文件存在 / 体积预算 / RIFF 单声道 22050Hz / BGM 韧性」。重生成：`python3 scripts/make_audio.py`。
+> 资产由 `scripts/make_audio.py`（numpy）合成：**统一 22050Hz 单声道 16bit WAV**（BGM 同为 22050，勿用其他采样率——安卓 InnerAudioContext 对非常规采样率 WAV 兼容差）；音效各 <100KB，BGM 10s 无缝循环 ≈431KB（预算 700KB）；`test/audio.test.js` 守护「10 文件存在 / 体积预算 / RIFF 单声道 22050Hz / BGM 韧性」。重生成：`python3 scripts/make_audio.py`。
 
 | ID | 触发 | 合成方向 |
 |---|---|---|
@@ -345,7 +345,7 @@ module.exports = {
 | `sfx_collapse` | 板坍塌落地（`BOARD_COLLAPSED`） | 沉闷木头落地 + 低频 |
 | `sfx_warn` | 满槽预警（`SLOT_FULL_WARNING`） | 311Hz 方波双短音 |
 | `sfx_win` / `sfx_lose` | 通关 / 失败结算 | 琶音上行 / 下行 |
-| `bgm_main` | 首触点解锁后循环播放（**12.8s 无缝循环**，75bpm Lo-fi，音量 0.35） | 75bpm 四小节下行和声（Fmaj7→Em7→Dm7→Cmaj7）：Rhodes 电钢 + 贝斯 + 软底鼓/刷子军鼓/摇摆踩镲 + 稀疏五声铃铛旋律 + 轻黑胶底噪；结尾 1s 线性交叉淡化实现无缝循环 |
+| `bgm_main` | 首触点解锁后循环播放（**10s 无缝循环**，96bpm 欢快 Chill，音量 0.5） | **欢快轻松向编曲**：96bpm C 大调卡农进行（Cmaj7→Am7→Fmaj7→G7，明亮有推动力、无下行忧伤）；马蹄铁琴（马林巴质感）五声跳跃旋律 + 点八分反馈 echo 空间感 + 快起音 Rhodes + 低音 pad 垫底 + oom-pump 弹跳贝斯 + 软拍手 backbeat（2/4 拍）+ 摇摆踩镲 + 软底鼓；黑胶 pops 移除仅留极轻 hiss；母带 **RMS 感知响度归一 + tanh 软限**（稀疏编制也够响，peak 0.92 写盘），只削 12k 以上毛刺保留明亮；结尾 1.2s 线性交叉淡化无缝循环；`scripts/make_audio.py:bgm_chill()` 可复现 |
 
 - **音频后端两级（WebAudio 优先）**：`preload` 先试 `wx.createWebAudioContext()`（`Platform.createWebAudio`）——成功则 9 音效 + BGM 经 `readFileBuffer` 读包内 wav → `decodeAudioData` 进 buffer，播放用一次性 BufferSource（天然重叠、低延迟、**0 个 InnerAudioContext**，消除每个实例内部挂的 `LifeCycle:Show` 监听器，根治监听器告警）；WebAudio 不可用或单项解码失败 → 该项**自动降级 InnerAudioContext**（音效懒创建、BGM 走三重韧性链路），整体能力可混用；
 - **首次触点才解锁播放**（微信策略，`onTap` 首调 `unlock()`，同时启动 BGM）；
@@ -596,7 +596,7 @@ tick(): now/dt(钳制 ≤0.05) → 慢帧统计 → [非冻结] 相机/补间/�
 
 | 指标 | 预算 | 现状 |
 |---|---|---|
-| 首包体积 | ≤2MB | 代码+30 关+9 音效+1 BGM 合计 ≈1.15MB，余量充足 |
+| 首包体积 | ≤2MB | 代码+30 关+9 音效+1 BGM 合计 ≈1.04MB（BGM 欢快版 431KB），余量充足 |
 | 单帧可见面片 | ≤3000（2D 填充路径） | 最大关（12 板×50 螺丝）约 1700 面片（板 6 面/个，螺丝 33 面/个）；背面+屏外双剔除后通常 <50%，降级低模再砍螺丝侧面约 -40% |
 | 同屏粒子 | ≤300（降级 150） | 收集 10 粒/次、坍塌灰尘 10 粒/次 |
 | 常驻内存 | ≤150MB | 无引擎，远低于预算 |
