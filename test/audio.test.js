@@ -172,10 +172,11 @@ section('AudioManager WebAudio path');
 function fakeWa(spec) {
   const wa = {
     destination: {},
+    state: 'suspended',  // 真机语义：context 创建即 suspended，需用户手势/回前台恢复
     resumes: 0,
     starts: [],
     stops: [],
-    resume() { wa.resumes++; },
+    resume() { wa.resumes++; wa.state = 'running'; },
     createBufferSource() {
       const s = {
         buffer: null, loop: false, onended: null, _gain: null,
@@ -226,8 +227,28 @@ test('web audio uses zero InnerAudioContext instances and buffers for sfx/bgm', 
   assertEq(wa.stops.length, 1, 'bgm stopped');
   am.playBgm();
   assertEq(wa.starts.length, 4, 'bgm restart source');
+  wa.state = 'suspended';  // 模拟切后台被系统挂起
   am.webResume();
   assertEq(wa.resumes, 2, 'resume forwarded again on background return');
+  Platform.inject(null);
+});
+
+test('suspended context auto-heals on next play and on bgm toggle', () => {
+  const wa = fakeWa(null);
+  const created = [];
+  Platform.inject(webMock(wa, created));
+  const am = new AudioManager();
+  am.preload();
+  am.unlock();
+  assertEq(wa.state, 'running', 'gesture unlock resumed');
+  wa.state = 'suspended';   // 模拟激励广告拉走音频会话且 SDK 异常、onShow 恢复链缺失
+  am.play('sfx_match');
+  assertEq(wa.state, 'running', 'any sfx play auto-resumes the context');
+  wa.state = 'suspended';
+  am.stopBgm();
+  am.playBgm();             // 等价于玩家重新开关音效
+  assertEq(wa.state, 'running', 'bgm toggle also heals a suspended context');
+  assert(am.bgmSource, 'bgm source rebuilt');
   Platform.inject(null);
 });
 

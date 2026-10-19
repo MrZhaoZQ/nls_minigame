@@ -180,6 +180,7 @@ class AudioManager {
 
   _playBgmWeb() {
     if (!this.bgmBuffer || this.bgmSource) return;
+    this._resumeWeb();
     const self = this;
     try {
       const src = this._wa.createBufferSource();
@@ -209,6 +210,19 @@ class AudioManager {
     }
   }
 
+  // 激励视频播放期间微信会回收音频会话并挂起 WebAudioContext（广告 SDK 走异常路径时
+  // onShow 恢复链可能缺失/过早），任何播放入口与广告结算回调都必须先尝试恢复。
+  // resume 对 running 状态是幂等的，直接无条件调用，不依赖 state 字段的实现差异。
+  _resumeWeb() {
+    if (!this._webMode || !this._wa || !this._wa.resume) return;
+    // state 可用且已 running 走快路径；无 state 字段（老实现/mock）则保守地总是 resume
+    if (this._wa.state === 'running') return;
+    try {
+      const p = this._wa.resume();
+      if (p && p.catch) p.catch(() => {});
+    } catch (e) {}
+  }
+
   _stopBgmWeb() {
     const src = this.bgmSource;
     if (!src) return;
@@ -221,7 +235,10 @@ class AudioManager {
 
   play(id, opts) {
     if (!this.unlocked || this.muted) return;
-    if (this._webMode && this._playWeb(id, opts)) return;
+    if (this._webMode) {
+      this._resumeWeb();
+      if (this._playWeb(id, opts)) return;
+    }
     const ctx = this._ensureSfx(id);
     if (!ctx) return;
     try {
@@ -244,9 +261,7 @@ class AudioManager {
   unlock() {
     if (this.unlocked) return;
     this.unlocked = true;
-    if (this._webMode && this._wa && this._wa.resume) {
-      try { this._wa.resume(); } catch (e) {}
-    }
+    this._resumeWeb();
     this.playBgm();
   }
 
@@ -254,6 +269,7 @@ class AudioManager {
     if (this.bgmOn || this.muted || this._bgmDead) return;
     if (this._webMode && !this._webBgmFailed) {
       this.bgmOn = true;
+      this._resumeWeb();  // context 被广告挂起时，恢复原有 source 播放即可
       if (this.bgmBuffer) this._playBgmWeb();
       return;
     }
@@ -273,6 +289,7 @@ class AudioManager {
   ensureBgm() {
     if (!this.bgmOn || this.muted) return;
     if (this._webMode && !this._webBgmFailed) {
+      this._resumeWeb();  // source 还挂着但 context 被广告挂起时，resume 即恢复
       if (this.bgmBuffer && !this.bgmSource) this._playBgmWeb();
       return;
     }
@@ -280,10 +297,7 @@ class AudioManager {
   }
 
   webResume() {
-    if (!this._webMode || !this._wa) return;
-    try {
-      if (this._wa.resume) this._wa.resume();
-    } catch (e) {}
+    this._resumeWeb();
     this.ensureBgm();
   }
 

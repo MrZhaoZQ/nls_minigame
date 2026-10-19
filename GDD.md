@@ -353,7 +353,8 @@ module.exports = {
 - **BGM 安卓韧性**（legacy 路径；iOS 能响、安卓无声的根因对策）：
   1. `onCanplay` 门控——安卓上 `play()` 可能早于元数据就绪被静默丢弃，就绪回调到达时若 `bgmOn` 仍在则补播；
   2. `onError` 自动重建——安卓解码失败（如 errCode 10002）时销毁旧上下文、重建并重播，**进程级总预算 3 次**（静音切换/换关不再刷新配额，杜绝实例随重建次数累积泄漏）；超限本局彻底放弃 BGM（`_bgmDead`，音效不受累）；
-  3. `ensureBgm()`/`webResume()` 挂在 `Platform.onShow`——安卓 InnerAudioContext 切后台被暂停后**不会自动恢复**（iOS 会），回前台时 WebAudio 先 `resume()` 再按需补播/重建 source；
+  3. `ensureBgm()`/`webResume()` 挂在 `Platform.onShow`——安卓 InnerAudioContext 切后台被暂停后**不会自动恢复**（iOS 会），回前台时 WebAudio 先 `resume()` 再按需补播/重建 source；onShow 与广告结算回调均带 400ms 延迟重试；
+  4. **激励广告音频会话回收自愈**——激励视频播放期间微信回收音频会话并把 WebAudioContext 挂起（SDK 走 `operateWXDataForAd:fail system apperror` 等异常路径时 onShow 恢复链可能缺失/过早，表现为广告后全局静音且音效开关无效）。修复为三重保障：① `rewardProvider.show` 结算回调统一 `webResume()` + 400ms 延迟重试（覆盖全部 6 个奖励位）；② 所有播放入口（`play`/`playBgm`/`ensureBgm`/`_playBgmWeb`）前置 `_resumeWeb()` 自愈（state==='running' 快路径跳过，任何后续交互音效即恢复）；③ `setMuted` 往返经 `playBgm` 同样触发恢复。控制台里的 `operateWXDataForAd` 报错为微信广告 SDK 内部上报异常，与本游戏代码无关、无法拦截，仅其伴随的音频挂起需要上述自愈；
 - `Platform.onShow/onHide` 收敛为**wx 层单订阅 + 内部 fan-out**：业务多次订阅只注册 1 个 wx 监听器，杜绝业务侧 `LifeCycle:Show` 监听增长。
 
 ### 5.2 视觉反馈清单

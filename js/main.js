@@ -187,6 +187,19 @@ function bootstrap() {
   audio.preload();
   audio.bindGameEvents(app.bus);
   app.lastProgressAt = Platform.now();
+  app.audio = audio;
+
+  // 激励广告/分享拉起期间音频会话被系统回收（WebAudioContext 被挂起；广告 SDK 走
+  // apperror 之类异常路径时 onShow 恢复链不可靠）——在奖励结算回调处主动恢复，
+  // 并延迟重试一次（SDK 释放音频会话可能晚于 onClose 回调）。
+  const rawRewardShow = rewardProvider.show.bind(rewardProvider);
+  rewardProvider.show = function (placement, cb) {
+    rawRewardShow(placement, (res) => {
+      audio.webResume();
+      setTimeout(() => audio.webResume(), 400);
+      if (cb) cb(res);
+    });
+  };
 
   app.scene = scene;
   app.camera = camera;
@@ -743,6 +756,8 @@ function bootstrap() {
   Platform.onShow((res) => {
     audio.webResume();
     audio.ensureBgm();
+    // 广告 SDK 释放音频会话可能晚于 onShow：延迟再恢复一次（幂等，无副作用）
+    setTimeout(() => { audio.webResume(); audio.ensureBgm(); }, 400);
     const q = res && res.query;
     const qLevel = parseInt(q && q.level, 10);
     if (qLevel >= 1 && SaveManager.getTutorialDone()) {

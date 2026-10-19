@@ -694,6 +694,9 @@ test('fail-panel retry requires finishing the rewarded video', () => {
   assert(app.failPanel.visible, 'skipping the video must not restart the level');
   assert(app.toast.msg.indexOf('未完成') >= 0, 'skip explains why: ' + app.toast.msg);
 
+  let audioResumes = 0;
+  const realWebResume = app.audio.webResume.bind(app.audio);
+  app.audio.webResume = () => { audioResumes++; realWebResume(); };
   tapAt(retryBtn.x, retryBtn.y);
   stepFrames(2, 16);
   assert(closeCb, 'second attempt re-armed the ad');
@@ -702,6 +705,7 @@ test('fail-panel retry requires finishing the rewarded video', () => {
   assertEq(app.failPanel.visible, false, 'finished video restarts the level');
   assertEq(app.currentLevelId, 2, 'same level restarted');
   assertEq(app.game.state, 'playing', 'fresh attempt is playable');
+  assert(audioResumes >= 1, 'reward settlement restores the audio session (ad takes it over)');
 
   Platform.inject(null);
   delete require.cache[require.resolve('../js/main')];
