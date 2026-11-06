@@ -19,7 +19,7 @@ test('all 30 levels pass validator', function () {
     const lvl = Levels[id];
     const res = validator.validate(lvl, { runs: 100, seed: id * 7 + 1 });
     assert(res.ok, 'level ' + id + ': ' + res.errors.join('; '));
-    if (id >= 6) {
+    if (id >= 2) {
       assert(typeof res.tightRate === 'number' && res.tightRate >= 0.3,
         'level ' + id + ' must ship with real slot pressure, tight=' + res.tightRate);
     }
@@ -192,18 +192,25 @@ test('generator emits shape variety and yaw variety from level 3', () => {
   assert(anyYaw, 'growing-stage levels should mix in yaw rotation');
 });
 
-test('early levels 1-2 stay single-board teaching shapes', () => {
+test('level 1 stays single-board teaching shapes; structure pressure starts at level 2', () => {
+  let l2Shapes = 0;
+  let l2Yaw = 0;
   for (let seed = 1; seed <= 50; seed++) {
     const lvl = generator.generateLevel(1, seed);
     assertEq(lvl.boards.length, 2, 'level 1 must always ship exactly 2 boards (no single 9-hole board)');
     for (let i = 0; i < lvl.boards.length; i++) {
       assertEq(lvl.boards[i].prefab, 'Board_Single', 'level 1 must stay teaching shape');
+      assertEq(lvl.boards[i].rotation[1] || 0, 0, 'level 1 must stay yaw-aligned');
     }
     const lvl2 = generator.generateLevel(2, seed);
     for (let i = 0; i < lvl2.boards.length; i++) {
-      assertEq(lvl2.boards[i].prefab, 'Board_Single', 'level 2 must stay teaching shape');
+      if (lvl2.boards[i].prefab !== 'Board_Single') l2Shapes++;
+      const y = Math.abs(lvl2.boards[i].rotation[1] || 0) % 180;
+      if (y > 5 && y < 175) l2Yaw++;
     }
   }
+  assert(l2Shapes > 0, 'level 2 must mix in off-shape boards (structure pressure from L2)');
+  assert(l2Yaw > 0, 'level 2 must mix in yaw rotation (structure pressure from L2)');
 });
 
 test('L board and gear holes sit inside their footprints', () => {
@@ -246,7 +253,7 @@ test('per-board same-color cap rejects 3+ same-color screws from level 3', () =>
   assert(!override.errors.some(e => e.indexOf('same-color') >= 0), 'sameColorCap override honored');
 });
 
-test('early levels keep fair entry: generator emits entry triple', () => {
+test('early levels 3-5 stay within two layers', () => {
   for (let ii = 0; ii < 40; ii++) {
     for (const id of [3, 4, 5]) {
       const lvl = generator.generateLevel(id, 4000 + ii * 17);
@@ -255,42 +262,8 @@ test('early levels keep fair entry: generator emits entry triple', () => {
         layers[Math.round(lvl.boards[i].position[1])] = 1;
       }
       assert(Object.keys(layers).length <= 2, 'level ' + id + ' seed ' + ii + ' exceeds 2 layers');
-      const uc = {};
-      for (let i = 0; i < lvl.boards.length; i++) {
-        const b = lvl.boards[i];
-        for (let j = 0; j < b.holes.length; j++) {
-          const h = b.holes[j];
-          if (!h.coveredBy || h.coveredBy.length === 0) uc[h.color] = (uc[h.color] || 0) + 1;
-        }
-      }
-      let maxUc = 0;
-      for (const k of Object.keys(uc)) maxUc = Math.max(maxUc, uc[k]);
-      assert(maxUc >= 3, 'level ' + id + ' seed ' + ii + ' lacks entry triple');
     }
   }
-
-  const noEntryTriple = {
-    id: 4, name: 'nt', colors: ['red', 'blue'], slotCount: 5, gridSize: 5,
-    boards: [
-      { id: 'b1', prefab: 'Board_Single', position: [0, 0, 0], rotation: [0, 0, 0],
-        holes: [
-          { id: 'h1', pos: [-1.4, 0, 0], color: 'red', coveredBy: ['b2'] },
-          { id: 'h2', pos: [1.4, 0, 0], color: 'blue', coveredBy: ['b2'] }
-        ] },
-      { id: 'b2', prefab: 'Board_Single', position: [0, 1, 0], rotation: [0, 0, 0],
-        holes: [
-          { id: 'h3', pos: [-1.4, 0, 0], color: 'red' },
-          { id: 'h4', pos: [-0.5, 0, 0], color: 'red' },
-          { id: 'h5', pos: [0.5, 0, 0], color: 'blue' },
-          { id: 'h6', pos: [1.4, 0, 0], color: 'blue' }
-        ] }
-    ]
-  };
-  const r2 = validator.validate(noEntryTriple, { runs: 1, tightFrom: 99, cogFrom: 99 });
-  assert(r2.errors.some(e => e.indexOf('entry triple') >= 0), r2.errors.join('; '));
-  const r3 = validator.validate(noEntryTriple,
-    { runs: 1, tightFrom: 99, cogFrom: 99, earlyFairFrom: 99 });
-  assert(!r3.errors.some(e => e.indexOf('entry triple') >= 0), 'earlyFair override honored');
 });
 
 test('generator keeps per-board same-color <= 2 across all stages', () => {

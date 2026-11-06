@@ -77,8 +77,6 @@ function pickRange(rng, range) {
 
 const SAME_COLOR_CAP_FROM = 3;
 const SAME_COLOR_MAX_PER_BOARD = 2;
-const EARLY_FAIR_FROM = 3;
-const EARLY_FAIR_UNTIL = 5;
 
 // cap 契约：调用方须保证 numColors * floor(cap/3)*3 >= total，否则截断后总和不足。
 function distributeColors(total, numColors, cap) {
@@ -220,12 +218,12 @@ function generateLevel(levelId, seed) {
   let colorCount = pickRange(rng, stage.colors);
 
   const shapePool = [];
-  const shapeChance = levelId < 3 ? 0 : (levelId <= 5 ? 0.2 : (levelId <= 25 ? 0.35 : 0.15));
+  const shapeChance = levelId < 2 ? 0 : (levelId <= 25 ? 0.35 : 0.15);
   for (let i = 0; i < boardCount; i++) {
     if (rng() < shapeChance) shapePool.push(PREFABS[1 + Math.floor(rng() * 2)]);
     else shapePool.push('Board_Single');
   }
-  const yawChance = levelId < 3 ? 0 : (levelId <= 5 ? 0.2 : 0.5);
+  const yawChance = levelId < 2 ? 0 : 0.5;
 
   const capacityOf = (b) => holeGridOf(shapePool[b]).length;
 
@@ -390,9 +388,6 @@ function generateLevel(levelId, seed) {
     disperseSameColor(level, rng, SAME_COLOR_MAX_PER_BOARD);
     // 修复失败（罕见贪心死角）不阻断：校验器"同板同色"闸门会拒收该 seed，buildLevels 自动换 seed。
   }
-  if (levelId >= EARLY_FAIR_FROM && levelId <= EARLY_FAIR_UNTIL) {
-    ensureEntryTriple(level);
-  }
   return level;
 }
 
@@ -402,53 +397,6 @@ function countColorOn(board, color) {
     if (board.holes[j].color === color) n++;
   }
   return n;
-}
-
-function ensureEntryTriple(level) {
-  for (let attempt = 0; attempt < 40; attempt++) {
-    const unlocked = [];
-    for (let i = 0; i < level.boards.length; i++) {
-      const b = level.boards[i];
-      for (let j = 0; j < b.holes.length; j++) {
-        if (!b.holes[j].coveredBy) unlocked.push({ b: b, h: b.holes[j] });
-      }
-    }
-    const cnt = {};
-    for (let i = 0; i < unlocked.length; i++) {
-      cnt[unlocked[i].h.color] = (cnt[unlocked[i].h.color] || 0) + 1;
-    }
-    const names = Object.keys(cnt);
-    let ok = false;
-    for (let i = 0; i < names.length; i++) {
-      if (cnt[names[i]] >= 3) ok = true;
-    }
-    if (ok) return true;
-    let done = false;
-    for (let pi = 0; pi < names.length && !done; pi++) {
-      const pc = names[pi];
-      if (cnt[pc] < 2) continue;
-      for (let i = 0; i < level.boards.length && !done; i++) {
-        const b = level.boards[i];
-        for (let j = 0; j < b.holes.length && !done; j++) {
-          const h = b.holes[j];
-          if (!h.coveredBy || h.color !== pc) continue;
-          for (let u = 0; u < unlocked.length && !done; u++) {
-            const ub = unlocked[u].b;
-            const uh = unlocked[u].h;
-            if (uh.color === pc) continue;
-            if (countColorOn(ub, pc) >= SAME_COLOR_MAX_PER_BOARD) continue;
-            if (countColorOn(b, uh.color) >= SAME_COLOR_MAX_PER_BOARD) continue;
-            const tmp = uh.color;
-            uh.color = pc;
-            h.color = tmp;
-            done = true;
-          }
-        }
-      }
-    }
-    if (!done) return false;
-  }
-  return false;
 }
 
 function assignCovering(level, coverRatio, rng) {

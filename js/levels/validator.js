@@ -2,15 +2,13 @@
 
 const HEAD_R = 0.16;
 const SCREW_MIN_DIST = 0.5;
-const TIGHT_FROM_LEVEL = 6;
+const TIGHT_FROM_LEVEL = 2;
 const TIGHT_MIN_RATE = 0.3;
 const COGNITIVE_FROM_LEVEL = 6;
 const COGNITIVE_MIN_ENTROPY = 0.1;
 const COGNITIVE_MIN_STRUCTURE = 1.15;
 const SAME_COLOR_CAP_FROM = 3;
 const SAME_COLOR_MAX_PER_BOARD = 2;
-const EARLY_FAIR_FROM = 3;
-const EARLY_FAIR_UNTIL = 5;
 const SLOT_RELAX_FROM = 6;
 
 function mulberry32(seed) {
@@ -288,29 +286,6 @@ function validate(level, opts) {
   }
 
   if (!openAtStart) errors.push('no uncovered screw at start');
-
-  const earlyFrom = o.earlyFairFrom != null ? o.earlyFairFrom : EARLY_FAIR_FROM;
-  const earlyUntil = o.earlyFairUntil != null ? o.earlyFairUntil : EARLY_FAIR_UNTIL;
-  if (level.id >= earlyFrom && level.id <= earlyUntil) {
-    const uc = {};
-    for (let i = 0; i < level.boards.length; i++) {
-      const bd = level.boards[i];
-      for (let j = 0; j < bd.holes.length; j++) {
-        const h = bd.holes[j];
-        if (!h.coveredBy || h.coveredBy.length === 0) {
-          uc[h.color] = (uc[h.color] || 0) + 1;
-        }
-      }
-    }
-    let maxUc = 0;
-    const ukeys = Object.keys(uc);
-    for (let i = 0; i < ukeys.length; i++) {
-      if (uc[ukeys[i]] > maxUc) maxUc = uc[ukeys[i]];
-    }
-    if (maxUc < 3) {
-      errors.push('early level lacks entry triple among unlocked screws');
-    }
-  }
 
   const state = {};
   const ids = Object.keys(coverGraph);

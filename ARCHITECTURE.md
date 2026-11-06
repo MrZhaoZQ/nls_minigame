@@ -44,7 +44,7 @@ minigame/
 │  │  ├─ index.js             # id → 关卡数据 映射
 │  │  ├─ LevelLoader.js       # 数据 → 场景树（板→孔位→螺丝）+ coveredBy 建表 + 取景计算
 │  │  ├─ generator.js         # 关卡生成器（分阶段难度、seed 可复现）
-│  │  └─ validator.js          # 校验器：静态规则 + 贪心可解性模拟 + 自动 +1 槽 + 紧度闸门（6 关起 slot-1 死局率 ≥0.3）
+│  │  └─ validator.js          # 校验器：静态规则 + 贪心可解性模拟 + 自动 +1 槽 + 紧度闸门（2 关起 slot-1 死局率 ≥0.3）
 │  ├─ core/
 │  │  ├─ EventBus.js          # 事件总线 + Events 常量表
 │  │  ├─ GameManager.js       # 对局状态机/胜负/关卡流转/撤销/提示/清槽
