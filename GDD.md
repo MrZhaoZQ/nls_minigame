@@ -15,13 +15,13 @@
 | 文档版本 | v3.1（2026-09-05，与当前代码逐条对齐） |
 
 > **v3.1 相对 v3.0 的关键修订**（均以现网代码为准）：
-> 1. 商业化由「纯广告」升级为**奖励双通道**：`GameConfig.ad.mode` 在 `'share'`（流量主未开通期，当前）与 `'ad'`（开通后）间切换，四个奖励位与全部文案自动跟随；
+> 1. 商业化由「纯广告」升级为**奖励双通道**：`GameConfig.ad.mode` 在 `'ad'`（**当前**，流量主已开通）与 `'share'`（回退开关）间切换，七个奖励位与全部文案自动跟随；
 > 2. 新增**金币经济**：通关产出、提示/撤销/失败救援消耗、`wx.showModal` 弹窗确认；
 > 3. 新增**完整外围系统**：三步新手引导、选关菜单（星级/重玩）、暂停面板、帮助面板（可滚动）、轻提示 Toast、结算统计（星/用时/步数）；
 > 4. 关卡由 20 → **30**，生成器阶段数值、校验器规则（3 组随机种子 ×100 次 + 1 次确定性贪心、自动 +1 槽）按实现修订；
 > 5. 拾取/遮挡方案按实现修订：螺丝头**球体命中** + 上层板**footprint 核心区遮挡判定**（射线-OBB 求交保留为数学工具与测试）；
 > 6. 撤销改为**快照式**（还原入槽前槽位数组），失败面板救援为「撤回一步 / 移出 3 颗」；
-> 7. 附录 A（GameConfig）与附录 B（运行/验收）同步至当前真实配置与测试现状（199 项断言全绿）。
+> 7. 附录 A（GameConfig）与附录 B（运行/验收）同步至当前真实配置与测试现状（222 项断言全绿）。
 >
 > 维护向信息（模块装配顺序、输入路由细节、排障速查）见配套文档 `ARCHITECTURE.md`；本文件承载设计意图、玩法规格、数值与验收标准。
 
@@ -225,6 +225,15 @@ Screw 状态（ScrewManager.ScrewState）：
 
 > 音效开关当前为运行时状态（暂停面板切换），**未持久化**——见第 10 节待办。
 
+### 3.4 微信好友排行榜（已接入）
+
+| 项 | 规格 |
+|---|---|
+| 上报键 | `GameConfig.social.rankKey`（`WRofNLSL`），score = **已通关最高关数**（0 关不上报） |
+| 通道 | `Platform.setUserCloudStorage`（wx 开放数据 KV，失败仅告警静默降级） |
+| 触发时机 | 启动 bootstrap 后、每次 `LEVEL_WIN` 结算后、`onShow` 回前台（含分享回流路径） |
+| 最终关补正 | 打通第 30 关后 `unlockedLevel` 停在 30（无下一关可解锁），按 `results[30]` 存在与否补正为 30，否则永远少 1（launch.test 守护） |
+
 ---
 
 ## 4. 关卡系统
@@ -325,7 +334,7 @@ module.exports = {
 
 ### 4.4 构建管线与加载
 
-- `node scripts/buildLevels.js`：30 关逐关在 `[id×100000, id×100000+300000)` 种子预算内搜索**首个**通过校验器的种子（区间隔离，杜绝相邻关同种子撞车），写入 `levelData/level_0XX.js`（含 `adjustedSlotCount` 与 `seed`），并重写 `js/levels/index.js`；校验器四组模拟按「首死即退」短路加速，语义不变；每关打印 `shapes`（异形板数）、`entropy`、`structure` 供抽查难度曲线；
+- `node scripts/buildLevels.js`：30 关逐关在 `[id×1000000, id×1000000+300000)` 种子预算内搜索**首个**通过校验器的种子（区间隔离，杜绝相邻关同种子撞车），写入 `levelData/level_0XX.js`（含 `adjustedSlotCount` 与 `seed`），并重写 `js/levels/index.js`；校验器四组模拟按「首死即退」短路加速，语义不变；每关打印 `shapes`（异形板数）、`entropy`、`structure` 供抽查难度曲线；
 - `js/levels/index.js`：按 `GameConfig.levels.totalShipped` 懒加载（`defineProperty` getter + 缓存），启动只解析入口；
 - `LevelLoader.load`：数据 → 场景树（板节点 → 孔位节点 → 螺丝节点），建 `coveredBy` 解锁表，并按各板世界包围盒计算取景参数（pivot / 包围球半径）。
 
@@ -382,11 +391,12 @@ module.exports = {
 
 ### 6.1 奖励提供方：双模式一键切换
 
-> **决策 D19**：`GameConfig.ad.mode` = `'ad'`（**当前**，流量主已开通、激励位已接）或 `'share'`（回退开关，供审核/异常期切换）。`AdManager` 与 `ShareManager` 实现**同一接口** `show(placement, cb) / canShow(placement) / setLevel(id)`，启动时按模式选定唯一 `rewardProvider`。六个奖励位、三段文案（失败面板/结算面板/帮助面板）随模式自动切换，**业务代码零改动**。（历史注：曾有 `capacity` 选关页扩容位与 `daily_coins` 领金币位，已下线，选关页底部改为常驻横幅广告。）
+> **决策 D19**：`GameConfig.ad.mode` = `'ad'`（**当前**，流量主已开通、激励位已接）或 `'share'`（回退开关，供审核/异常期切换）。`AdManager` 与 `ShareManager` 实现**同一接口** `show(placement, cb) / canShow(placement) / setLevel(id)`，启动时按模式选定唯一 `rewardProvider`。七个奖励位、三段文案（失败面板/结算面板/帮助面板）随模式自动切换，**业务代码零改动**。（历史注：曾有 `capacity` 选关页扩容位与 `daily_coins` 领金币位，已下线，选关页底部改为常驻横幅广告。）
 
 | 奖励位（placement） | 场景 | 奖励 |
 |---|---|---|
 | `hint` | 顶栏提示按钮（金币不足时回落） | 高亮 1 颗可拆螺丝 |
+| `hint_more` | 顶栏提示按钮（本关提示已用完，弹窗确认后追加） | +1 次提示并立即高亮（可反复追加） |
 | `undo` | 顶栏撤销按钮（免费配额与金币均用尽时回落） | +1 撤销配额并立即执行一次撤销 |
 | `win_double` | 结算面板「金币翻倍」 | 本关金币再发等额 |
 | `fail_undo` | 失败面板「撤回最后一步」 | +1 撤销配额并立即执行 |
@@ -596,7 +606,7 @@ tick(): now/dt(钳制 ≤0.05) → 慢帧统计 → [非冻结] 相机/补间/�
 
 | 指标 | 预算 | 现状 |
 |---|---|---|
-| 首包体积 | ≤2MB | 代码+30 关+9 音效+1 BGM 合计 ≈1.04MB（BGM 欢快版 431KB），余量充足 |
+| 首包体积 | ≤2MB | 代码+30 关 ≈442KB，9 音效+1 BGM ≈659KB，源码合计 ≈1.10MB（未压缩，BGM 欢快版 431KB），压缩上传后更小，余量充足 |
 | 单帧可见面片 | ≤3000（2D 填充路径） | 最大关（12 板×50 螺丝）约 1700 面片（板 6 面/个，螺丝 33 面/个）；背面+屏外双剔除后通常 <50%，降级低模再砍螺丝侧面约 -40% |
 | 同屏粒子 | ≤300（降级 150） | 收集 10 粒/次、坍塌灰尘 10 粒/次 |
 | 常驻内存 | ≤150MB | 无引擎，远低于预算 |
@@ -616,7 +626,7 @@ tick(): now/dt(钳制 ≤0.05) → 慢帧统计 → [非冻结] 相机/补间/�
 
 ## 9. 质量保障
 
-### 9.1 测试体系（`test/`，当前 **199 项断言全绿**）
+### 9.1 测试体系（`test/`，当前 **222 项断言全绿**）
 
 ```
 node test/run.js                      # 全量（16 套件）
@@ -637,10 +647,10 @@ node scripts/headlessPlaythrough.js   # 30 关无头打通（贪心玩家 + 救�
 | `bootstrap` | 无头端到端：bootstrap → 模拟点击通关 → 面板进下一关 |
 | `ad` | mock 发奖/无冷启动限制/**无冷却无日限无每关限（计数仅埋点）**/真广告 isEnded/跳过不发/在播报错保奖励 |
 | `share` | 成功发奖/取消不发/冷却/单关限次/换关清零/标题模板 |
-| `audio` | 7 文件存在/<100KB/RIFF 单声道 22050Hz |
+| `audio` | 10 文件存在（9 音效+1 BGM）/音效 <100KB·BGM <700KB/RIFF 单声道 22050Hz + BGM 韧性（onError 重建/canplay 补播/静音联动/ensureBgm） |
 | `ui` | 胶囊避让/按钮右缘对齐/帮助面板滚动与惯性/槽条安全区与对称留白/提示标记生命周期/重置 |
 | `meta` | 存档（引导标记/最佳星时）、引导推进、选关命中（含横幅预留区）、暂停命中、金币收支、失败面板条件展示、Toast 过期 |
-| `launch` | 被动分享注册/冷启动 query 直达/超解锁回落/无 query 菜单/热启动直达/菜单态不弹回归/回归遮罩单击仅关闭 |
+| `launch` | 被动分享注册/冷启动 query 直达/超解锁回落/无 query 菜单/热启动直达/菜单态不弹回归/回归遮罩单击仅关闭/冷启动 DPR 校准/脉冲动画隔帧出图/排行榜上报与最终关补正 |
 
 **约定：新功能必须带测试**；纯逻辑直接断言，UI 用假 ctx 冒烟，流程用 `Platform.inject` + `raf` 收帧 + `now` 控时钟做无头驱动。
 
@@ -673,7 +683,7 @@ node scripts/headlessPlaythrough.js   # 30 关无头打通（贪心玩家 + 救�
 | M3 多层遮挡 + 动画坍塌 | ✅ |
 | M4 关卡管线（生成器/校验器/30 关） | ✅（`node test/run.js` 自动化验收） |
 | M5 反馈系统（音效/粒子/震动/面板） | ✅ |
-| M6 商业化（奖励双通道 + 频控 + 金币经济） | ✅（share 模式运行中，ad 通道随时切换） |
+| M6 商业化（奖励双通道 + 插屏/横幅 + 金币经济） | ✅（`mode:'ad'` 运行中：激励/插屏/原生模板三形态全接入；share 通道回退保留） |
 | M7 性能优化 + 真机适配 | ✅（降帧保护/resize/胶囊避让；提审素材为人工项） |
 
 额外完成：三步新手引导、选关菜单+星级+回玩、暂停/设置、帮助面板、Toast、结算统计、被动分享与回流、金币弹窗确认流。
@@ -683,8 +693,8 @@ node scripts/headlessPlaythrough.js   # 30 关无头打通（贪心玩家 + 救�
 | 项 | 现状 | 说明 |
 |---|---|---|
 | 埋点接线 | `Platform.reportEvent` 就绪、无调用点 | 按 6.5 事件表补监听即可 |
-| 切正式广告 | ✅ 已完成：激励位 `unitId` 已填、`mode:'ad'`（5 奖励位）；插屏位经 `InterstitialManager` 仅接结算「下一关」转场；原生模板横幅 `TemplateAdManager` 常驻选关页+结算/暂停面板展示（见 6.2） | 观察 eCPM/留存数据后再调频控参数 |
-| BGM 安卓兼容加固 | 已实现 8s 循环 BGM + 三重韧性（onCanplay 补播 / onError 重建重播 / onShow ensureBgm，见 5.1） | 若低端安卓仍无声，素材转 mp3/m4a 再验（wav→mp3 兼容性更好） |
+| 切正式广告 | ✅ 已完成：激励位 `unitId` 已填、`mode:'ad'`（7 奖励位）；插屏位经 `InterstitialManager` 仅接结算「下一关」转场；原生模板横幅 `TemplateAdManager` 常驻选关页+结算/暂停面板展示（见 6.2） | 观察 eCPM/留存数据后再调插屏/横幅频控参数（激励无频控） |
+| BGM 安卓兼容加固 | 已实现 10s 循环 BGM + 三重韧性（onCanplay 补播 / onError 重建重播 / onShow ensureBgm，见 5.1） | 若低端安卓仍无声，素材转 mp3/m4a 再验（wav→mp3 兼容性更好） |
 | 音效开关持久化 | 仅运行时状态 | 落 `SaveManager` 一键补 |
 | 异形板型投入关卡 | ✅ 已完成：`generator` 第 3 关起混入 `Board_L`/`Board_Gear`（概率约 0.35）+ yaw 错位旋转；footprint/孔位网格/遮挡核心区已同步校验器 | 观察难度曲线后微调 `shapeChance`/`yawChance` |
 | 自动聚焦镜头 | `focusOn()` 预留未接线 | 点击遮挡区时提示性转视角 |
@@ -703,7 +713,7 @@ node scripts/headlessPlaythrough.js   # 30 关无头打通（贪心玩家 + 救�
 | 3 | 低端机 Canvas2D 帧率不达标 | 中 | 降帧保护（粒子减半+关震动）、dt 钳制、顶点缓存；极端低模螺丝为备用项 |
 | 4 | 「分享得奖励」触碰诱导分享红线 | 中→低 | 已切 `mode:'ad'`（流量主开通），分享奖励通道仅作回退开关；回切时文案「邀好友」弱化利益、频控严格（5s/30 日） |
 | 5 | 三消「卡死局」引发负面情绪 | 中 | 校验器保证 3 组随机 ×100 次贪心零死局（不足自动 +1 槽）；满槽前预警（≥4）；失败面板三路救援（撤销/清 3/金币） |
-| 6 | 无构建纯 JS 项目规模膨胀难维护 | 中 | 分层红线（7.2）+ 199 项测试 + 每模块职责表；`gameplay/levels/core/math` 禁触运行环境 |
+| 6 | 无构建纯 JS 项目规模膨胀难维护 | 中 | 分层红线（7.2）+ 222 项测试 + 每模块职责表；`gameplay/levels/core/math` 禁触运行环境 |
 | 7 | 广告位未开通导致变现空窗 | 已消除 | 流量主开通，激励（7 位）+插屏（2 点位）+原生模板横幅三形态接入；测试桩/mock 仍保证无广告环境全流程可玩 |
 | 8 | 分享图审核不通过 | 低 | 使用后台已审图 + `imageUrlId`；设计源稿与线上图分离 |
 
@@ -729,7 +739,7 @@ node scripts/headlessPlaythrough.js   # 30 关无头打通（贪心玩家 + 救�
 > 参照 `ui/ResultPanel.js`（show/hide/update/hitTest/draw/_layout 五件套 + resize），在不改其职责的前提下：满 3 星且用时低于该关历史最佳时，面板顶部加一条庆祝文案与粒子（`ParticleFX.burst`）。布局走 `GameConfig` 新增色值，禁止硬编码；`test/ui.test.js` 补命中与绘制冒烟。
 
 ### 模板 6：音效开关落盘
-> `AudioManager.muted` 目前仅运行时。请落 `SaveManager`（键 `screwmaster_sound`，默认开）：启动时读取恢复；`setMuted` 写盘；暂停面板/选关页联动显示。BGM 已实现（8s 循环 `audio/bgm_main.wav`，静音联动停/复），补测试：杀进程重进后静音态保持。
+> `AudioManager.muted` 目前仅运行时。请落 `SaveManager`（键 `screwmaster_sound`，默认开）：启动时读取恢复；`setMuted` 写盘；暂停面板/选关页联动显示。BGM 已实现（10s 循环 `audio/bgm_main.wav`，静音联动停/复），补测试：杀进程重进后静音态保持。
 
 ---
 
@@ -749,23 +759,29 @@ const GameConfig = {
   match: { needCount: 3 },
   collapse: { warnTime: 0.25, fallTime: 0.5, rotMin: 15, rotMax: 30,
               fallDist: 2.5, queueGap: 0.2 },
-  ad: { unitId: 'adunit-5d823507f82ee7ab', mode: 'ad',   // 激励位无频控（计数仅埋点）
+  // 激励视频为用户主动奖励点：无冷却/日限/每关限（闸门逻辑已从 AdManager 移除）；
+  // 插屏为系统主动展示，频控保留（inter* 组）。
+  ad: { unitId: 'adunit-5d823507f82ee7ab', mode: 'ad',
         interUnitId: 'adunit-d11de76248f20c6a',
         interCooldownMs: 90000, interDailyLimit: 8, interProtectedLevels: 1,
         interWinGap: 2,
-        templateUnitId: 'adunit-f886986b0c0413d5',  // 三屏共用单实例（每多建一个 CustomAd 即一组基础库生命周期监听）
+        // 三屏（选关/暂停/结算）共用**单个** CustomAd 实例：每多建一个对象，
+        // 基础库都会在其上挂一组 LifeCycle 监听（30+ 触发泄漏告警）
+        templateUnitId: 'adunit-f886986b0c0413d5',
         templateAdIntervals: 30,
-        templateMargin: 10, templateRatio: [20, 7] },
+        templateMargin: 0, templateRatio: [20, 7] },
   share: {
     cooldownMs: 5000, perLevelLimit: 3, dailyLimit: 30,
     imageUrl: 'https://mmocgame.qpic.cn/wechatgame/Ywjy1K1L6eNtDDlF1cdWvqrdUriat9MAygoC1eZNAdicUOq0aNCKmJnQwZodpjhdKV/0',
     imageId: 'NhraUZjpQfuVp2CrmYHT/A=='
   },
   economy: { hintCost: 30, undoCost: 20, rescueCost: 50 },
+  social: { rankKey: 'WRofNLSL' },
   levels: { totalShipped: 30, maxUndoOps: 30 },
   render: { fov: 45, near: 0.1, far: 50,
             lightDir: [0.5, 1, 0.35], ambient: 0.45,
-            shadowAlpha: 0.18, maxParticles: 300, dpr: 1 },
+            shadowAlpha: 0.18, maxParticles: 300,
+            dprCap: 3, dprCapDegraded: 2 },
   board: { width: 3.6, depth: 1.2, thickness: 0.22,
            sizeL: { w: 3.6, d: 1.2, h: 1.2 },
            gearRadius: 1.6, gearSegments: 12 },
@@ -787,13 +803,13 @@ const GameConfig = {
 ## 附录 B：本地运行与上线清单
 
 ```
-# 全部单测（16 套件、199 项断言）
+# 全部单测（16 套件、222 项断言）
 node test/run.js
 
 # 30 关无头打通验证（贪心玩家 + 救援配额，全绿退出码 0）
 node scripts/headlessPlaythrough.js
 
-# 重出 30 关（生成器 + 校验器管线，种子搜索预算 6000，覆盖 js/levels/levelData/ 并重写 index.js）
+# 重出 30 关（生成器 + 校验器管线，种子搜索预算 300000/关、区间 id×10⁶ 隔离，覆盖 js/levels/levelData/ 并重写 index.js）
 node scripts/buildLevels.js
 
 # 重新合成音效与 BGM（统一 22050Hz 单声道，10 个文件）

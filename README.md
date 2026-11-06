@@ -8,8 +8,8 @@
 | 平台 | 微信小游戏（竖屏） |
 | 引擎 | 无（自研 Canvas2D 渲染管线；提审引擎项选「自研引擎」） |
 | 关卡 | 30 关（生成器 + 校验器管线产出，四阶段难度曲线） |
-| 测试 | 146 项 Node 单测 + 30 关无头打通验证 |
-| 包体 | ~830KB（预算 4MB） |
+| 测试 | 222 项 Node 单测 + 30 关无头打通验证 |
+| 包体 | 源码实测 ≈1.1MB（代码+30 关 ≈442KB、9 音效+1 BGM ≈659KB；压缩上传后更小，预算 4MB） |
 | 文档 | `GDD.md`（玩法与数值规格）· `ARCHITECTURE.md`（维护手册） |
 
 ---
@@ -24,7 +24,7 @@ node test/run.js
 node scripts/headlessPlaythrough.js
 # 4) 重新生成 30 关（生成器+校验器，确定性管线）
 node scripts/buildLevels.js
-# 5) 重新合成音效（7 个 wav）
+# 5) 重新合成音效与 BGM（10 个 wav）
 python3 scripts/make_audio.py
 ```
 
@@ -35,9 +35,8 @@ python3 scripts/make_audio.py
 ```
 ├─ game.js / game.json         # 小游戏入口与配置
 ├─ project.config.json         # 开发者工具配置（appid 已接正式）
-├─ logo.png                    # 应用图标
-├─ share.png                   # 分享卡设计源稿（实际分享用后台审核图，见 GameConfig.share）
-├─ audio/                      # 7 个程序化合成音效（wav）
+├─ minigameImgs.zip            # 素材源稿与提审/推广图（logo/share/banner/promo/游戏圈；不打包）
+├─ audio/                      # 程序化合成音频（9 音效 + 1 BGM，共 10 个 wav）
 ├─ js/
 │  ├─ main.js                 # 组装层：bootstrap、主循环、输入路由、事件接线
 │  ├─ config/GameConfig.js    # ★ 唯一调参地（手感/难度/经济/广告/渲染/分享图）
@@ -53,7 +52,7 @@ python3 scripts/make_audio.py
 │  ├─ audio/                  # AudioManager（首触点解锁、静默降级）
 │  └─ ui/                     # 选关/暂停/帮助/结算/失败/槽位/顶栏/Toast/提示标记/粒子
 ├─ scripts/                   # buildLevels / headlessPlaythrough / make_audio
-└─ test/                      # 146 项单测（harness 微型断言库）
+└─ test/                      # 222 项单测（harness 微型断言库）
 ```
 
 ---
@@ -70,7 +69,8 @@ python3 scripts/make_audio.py
 | 选关 | 网格+滚动+星级+回玩；底部为常驻横幅广告位（扩容入口已下线，老玩家扩容值仍生效） |
 | 金币经济 | 通关产出；消耗：提示 30 / 撤销 20 / 失败救援 50（二次点击确认防误扣） |
 | 分享 | 胶囊转发+朋友圈（审核图 `imageUrl`+`imageUrlId`）；奖励分享四出口；冷/热启动 query 回流 |
-| 广告 | `GameConfig.ad.mode`：`'ad'`（当前，流量主已开通）⇄ `'share'`（回退）；激励 5 位 + 插屏（仅结算「下一关」转场）+ 原生模板横幅（选关页常驻/结算/暂停）；频控齐全 |
+| 广告 | `GameConfig.ad.mode`：`'ad'`（当前，流量主已开通）⇄ `'share'`（回退）；激励 7 位（用户主动点，无频控，仅并发防重入）+ 插屏（仅结算「下一关」转场，四重闸门）+ 原生模板横幅（选关页常驻/结算/暂停） |
+| 排行榜 | 微信好友排行榜：上报已通关关数（`setUserCloudStorage`；启动/通关/回前台三处触发，最终关战绩补正） |
 | 存档 | 进度/星级/金币/引导态，wx storage |
 | 兼容 | 胶囊避让布局、safeArea、窗口 resize、降帧保护、震动/音频兜底 |
 
@@ -85,5 +85,5 @@ python3 scripts/make_audio.py
 
 ## 上线状态
 
-- ✅ 代码与关卡全量自测通过；appid 已接正式；分享审核图已配置
-- ⏳ 待人工：流量主开通后填 `GameConfig.ad.unitId` 并切 `mode:'ad'`；隐私指引/类目资质；提审素材
+- ✅ 代码与关卡全量自测通过（222 项单测 + 30 关无头打通）；appid 已接正式；分享审核图已配置；流量主已开通（激励/插屏/原生模板三形态全接入）
+- ⏳ 待人工：隐私指引/类目资质；提审素材

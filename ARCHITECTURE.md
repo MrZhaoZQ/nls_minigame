@@ -12,10 +12,10 @@ minigame/
 ├─ game.js                    # 微信小游戏入口：require('./js/main')
 ├─ game.json                  # 小游戏配置（竖屏等）
 ├─ project.config.json        # 开发者工具配置（appid 已接正式；test/、scripts/ 不打包）
-├─ logo.png                   # 144x144 图标（木板+红螺丝）
+├─ minigameImgs.zip           # 素材源稿与提审/推广图（logo.png/share.png/banner/promo/游戏圈素材；不打包）
 ├─ GDD.md                     # 游戏设计文档（v3.0 原生版）
 ├─ ARCHITECTURE.md            # 本文件
-├─ audio/                     # 9 音效 + 1 BGM 程序化合成（统一 22050Hz 单声道 WAV；音效 <100KB，BGM 12.8s 无缝循环 ≈551KB）
+├─ audio/                     # 9 音效 + 1 BGM 程序化合成（统一 22050Hz 单声道 WAV；音效 <100KB，BGM 10s 无缝循环 ≈431KB）
 ├─ js/
 │  ├─ main.js                 # 【组装层】bootstrap()：创建全部模块、接线、主循环、输入路由
 │  ├─ config/GameConfig.js    # 【唯一调参地】相机/输入/螺丝/槽位/坍塌/广告/渲染/颜色/木板
@@ -40,7 +40,7 @@ minigame/
 │  │  ├─ UndoStack.js         # 操作栈（≤30）
 │  │  └─ CollapseManager.js   # 坍塌串行队列（警示→坠落→淡出→间隔 0.2s）
 │  ├─ levels/
-│  │  ├─ levelData/level_001..020.js  # 正式关卡（module.exports=数据；buildLevels 生成）
+│  │  ├─ levelData/level_001..030.js  # 正式关卡（module.exports=数据；buildLevels 生成）
 │  │  ├─ index.js             # id → 关卡数据 映射
 │  │  ├─ LevelLoader.js       # 数据 → 场景树（板→孔位→螺丝）+ coveredBy 建表 + 取景计算
 │  │  ├─ generator.js         # 关卡生成器（分阶段难度、seed 可复现）
@@ -73,6 +73,7 @@ minigame/
 │  ├─ headlessPlaythrough.js   # 无头全量打通验证（模拟贪心玩家）
 │  └─ measureDifficulty.js     # 难度度量（greedy/casual/human 三档策略死亡率，调参校准用）
 │  └─ make_audio.py            # numpy 程序化合成 9 音效 + 1 BGM（统一 22050Hz）
+│  └─ make_post_cover.py / make_atmosphere.py  # 游戏圈帖封面/氛围图生成（成品归档于 minigameImgs.zip）
 └─ test/                       # Node 单测（harness 微型断言库；run.js 汇总）
 ```
 
@@ -95,7 +96,7 @@ Platform.getSystemInfo / createCanvas
 → ScrewManager(tweens) + SlotManager + GameManager({...})
 → CollapseManager(hooks)  ← onBoardGone → game.onCollapseFinished（解锁 coveredBy）
 → TopBar(capsule) / HelpPanel / HintMarker / ResultPanel / FailPanel / ParticleFX / AudioManager
-→ AdManager（激励 5 位）+ InterstitialManager（插屏，仅结算「下一关」）+ TemplateAdManager（原生模板横幅：选关页常驻 + 结算/暂停面板）
+→ AdManager（激励 7 位：hint/hint_more/undo/win_double/fail_undo/fail_clear/fail_retry）+ InterstitialManager（插屏，仅结算「下一关」）+ TemplateAdManager（原生模板横幅：选关页常驻 + 结算/暂停面板）
 → InputManager 接线（输入路由见下）
 → SaveManager 读进度 → startLevelById(current)
 → 事件订阅（音效/震动/粒子/面板弹出/顶栏计数）
@@ -129,7 +130,7 @@ Platform.getSystemInfo / createCanvas
 **冻结规则**：`pausePanel/levelSelect` 可见时 tick 跳过 camCtrl/tweens/particles/hint/tutorial 更新（真暂停）。
 **窗口 resize**：`Platform.onWindowResize` → 重设 canvas/相机/全部 UI 布局（折叠屏适配）。
 **性能**：背景渐变随 canvas 缓存（`app.bgGradient`）；关卡数据 `levels/index.js` 按需 require（启动只解析入口）。
-**分享图**：小游戏分享卡**必须用后台上传审核通过的网络图 + 图片 ID**，配置在 `GameConfig.share.imageUrl` / `share.imageId`，三个出口（转发/朋友圈/奖励分享）统一携带 `imageUrl`+`imageUrlId`；本地 `share.png` 仅作设计源稿，`logo.png` 仅作图标。
+**分享图**：小游戏分享卡**必须用后台上传审核通过的网络图 + 图片 ID**，配置在 `GameConfig.share.imageUrl` / `share.imageId`，三个出口（转发/朋友圈/奖励分享）统一携带 `imageUrl`+`imageUrlId`；本地设计源稿（`share.png`/`logo.png`）归档在 `minigameImgs.zip`，不参与运行时。
 **反馈兜底**：奖励被频控、取消、加载失败统一 `rewardFailToast` 出文案；`vibrateShort` 全机型 try/catch。
 
 ---
@@ -137,7 +138,7 @@ Platform.getSystemInfo / createCanvas
 ## 4. 核心机制速查
 
 ### 4.1 对局状态机（GameManager.state，字符串）
-`idle → playing ⇄ screwing（拧出动画锁输入）→ win_pending(0.6s)→ win`；`playing → lose`。
+`idle → playing ⇄ screwing（拧出动画锁输入）→ win_pending(1.4s)→ win`；`playing → lose`。
 `undo()` 可从 `lose` 恢复为 `playing`（广告救场路径）。
 
 ### 4.2 收集一颗粒子的完整链路（afterCollected）
@@ -172,15 +173,19 @@ undoStack.push({entry, slotSnapshot})   // 快照在入槽前拍
 
 ### 4.8 奖励提供方（可切换：转发邀请 ⇄ 激励视频）+ 插屏
 `GameConfig.ad.mode`：`'ad'`（**当前**，流量主已开通、激励位已接）或 `'share'`（回退开关）。
-main.js 按 mode 选择 `rewardProvider`（`ShareManager` 或 `AdManager`），两者**同接口** `show(placement, cb) / canShow(placement) / setLevel(id)`，五个奖励位（hint/win_double/fail_undo/fail_clear/undo）与全部文案（失败面板/结算面板/帮助面板）随模式自动切换，业务代码零改动。
+main.js 按 mode 选择 `rewardProvider`（`ShareManager` 或 `AdManager`），两者**同接口** `show(placement, cb) / canShow(placement) / setLevel(id)`，七个奖励位（hint/hint_more/undo/win_double/fail_undo/fail_clear/fail_retry）与全部文案（失败面板/结算面板/帮助面板）随模式自动切换，业务代码零改动。
 
-- **AdManager 频控**：激励位全为玩家主动点击，**无冷启动限制** → 相邻 ≥45s → 每日 ≤15 → `fail*` 每关 ≤2 → 上一单未回调时并发请求拒绝（reason `busy`）。测试桩无广告 API = mock 直发奖励。结算「翻倍」按钮按 `canShow('win_double')` 动态隐藏（与失败面板同模式），避免"可见但被频控拒绝"。
+- **AdManager 频控**：激励位全为玩家主动点击的奖励点，**不设冷却/日限/每关限**（产品决策 2026-10；`_grant` 仍记录时间戳/日计数/每关计数，**仅作埋点不参与闸门**，`canShow` 恒返 `{ok:true}`）；唯一技术闸门 = 上一单未回调时并发请求拒绝（reason `busy`）。失败面板「重新挑战」（`fail_retry`）必须完整看完视频才重启本关。ad 模式下结算「翻倍」与失败救援按钮因此**恒展示**（share 回退模式仍按 `GameConfig.share` 频控裁剪）。测试桩无广告 API = mock 直发奖励。
 - **InterstitialManager 闸门**（`GameConfig.ad.inter*`）：**唯一点位** = 胜利结算「下一关」转场，调 `maybeShow(levelId)`；仅第 1 关不弹（`interProtectedLevels:1`）→ 两次插屏间隔 ≥2 次通关（`interWinGap:2`，`noteWin()` 计数，无冷启动窗口）→ 相邻 ≥90s（锚点持久化在 `screwmaster_intercount.lastShowTs`，**杀进程重进不绕过**）→ 每日 ≤8。**只在 show 成功后计数**：填充失败/showFail 不消耗冷却/胜利间隔/日预算，且**绝不自动重播**（仅 `load()` 预热供下次转场，防止新关进行中突然弹出）。失败/暂停/后台回归/进关路径不接调用点。
-- **TemplateAdManager（原生模板 20:7 横幅卡片，`ad.templateUnitIds` 三展示面各一独立广告位：levelSelect/pause/result）**：展示面 = **选关页（常驻）** + 结算面板 + 暂停面板（tick 每帧闸门按 surface 路由，同帧仅一个实例 show，其余 hide；**实例懒建**——首次激活才 `createCustomAd`，启动期零原生组件、零广告请求，规避 `LifeCycle:Show` 监听器堆高与开屏并发拉广告；回归遮罩期间全隐藏；点「下一关」先隐藏再走插屏，避免双广告叠加）；选关页底部为其专区——网格 `viewBottom` 经 `bottomReserve`（= 安全区 + 估算横幅高 + 10px 间隙）让位，无按钮、不可命中；锚点 = 通栏贴安全区上沿（`left` 固定 0、`templateMargin` 为 0，高度按屏宽 × `templateRatio` 估算，`onLoad/onResize` 后用真实模板高度校准，`onWindowResize` 重定位）；无该 API（基础库 <2.11.1）/创建异常/无填充均静默降级，`onError` 仅真机告警并在展示中时隐藏。**真机怪癖**：部分基础库（实测 Lib 3.16.3）`CustomAd.isShow` 是**函数**而非布尔属性，一律经 `_isShown()` 解包（函数则调用、布尔则直读），truthy 误判会跳过 `show()` 导致零展示零报错。
+- **TemplateAdManager（原生模板 20:7 横幅卡片，`ad.templateUnitId` 单位共用——选关/暂停/结算三展示面共享同一 CustomAd 实例）**：展示面 = **选关页（常驻）** + 结算面板 + 暂停面板（tick 每帧闸门按 surface 路由，同帧仅一个实例 show，其余 hide；**实例懒建**——首次激活才 `createCustomAd`，启动期零原生组件、零广告请求，规避 `LifeCycle:Show` 监听器堆高与开屏并发拉广告；回归遮罩期间全隐藏；点「下一关」先隐藏再走插屏，避免双广告叠加）；选关页底部为其专区——网格 `viewBottom` 经 `bottomReserve`（= 安全区 + 估算横幅高 + 10px 间隙）让位，无按钮、不可命中；锚点 = 通栏贴安全区上沿（`left` 固定 0、`templateMargin` 为 0，高度按屏宽 × `templateRatio` 估算，`onLoad/onResize` 后用真实模板高度校准，`onWindowResize` 重定位）；无该 API（基础库 <2.11.1）/创建异常/无填充均静默降级，`onError` 仅真机告警并在展示中时隐藏。**真机怪癖**：部分基础库（实测 Lib 3.16.3）`CustomAd.isShow` 是**函数**而非布尔属性，一律经 `_isShown()` 解包（函数则调用、布尔则直读），truthy 误判会跳过 `show()` 导致零展示零报错。
 - **ShareManager 频控**：相邻 ≥5s → 每日 ≤30 → `fail*` 每关 ≤3；`wx.shareAppMessage` 的 success 回调才发奖（取消不发），分享计数独立存储（SaveManager.recordShare）。
 - **胶囊分享**：启动时 `showShareMenu({menus:['shareAppMessage','shareTimeline']})` 点亮双按钮；`onShareAppMessage`/`onShareTimeline` 均带动态关卡文案+审核图（`imageUrl`+`imageUrlId`）+回流 query。
 - **分享回流**：冷启动走 `getLaunchOptions`、**热启动走 `onShow(res.query)`** 双路径解析 level，超解锁回落选关页；日计数每次 `canShow` 重新读取，跨天自动翻滚。
 - **合规提醒**：「分享得奖励」属诱导分享灰区，微信《运营规范》有限制；已切 `'ad'` 模式，share 通道仅回退保留，回切时文案用「邀好友」弱化利益表述。
+
+### 4.9 微信好友排行榜（已接入）
+
+`main.js reportRank()` 经 `Platform.setUserCloudStorage` 上报开放数据键 `GameConfig.social.rankKey`（`WRofNLSL`），score = **已通关最高关数**（通关第 N 关即 N；0 关不上报）。三处触发：bootstrap 启动时、`LEVEL_WIN` 结算后、`onShow` 回前台（含分享回流路径）。**最终关补正**：打通第 30 关后 `unlockedLevel` 停在 30（无下一关可解锁），直接 `unlockedLevel-1` 会永远少 1，故按 `results[30]` 存在与否补正为 30（launch.test 有守护断言）；API 失败仅 console.warn 静默降级。
 
 ---
 
@@ -201,7 +206,7 @@ main.js 按 mode 选择 `rewardProvider`（`ShareManager` 或 `AdManager`），�
 
 ---
 
-## 6. 测试体系（test/，当前 176 项）
+## 6. 测试体系（test/，当前 222 项）
 
 ```
 node test/run.js                 # 全量
@@ -221,12 +226,12 @@ node scripts/headlessPlaythrough.js  # 30 关无头打通（贪心玩家）
 | collapse.test | 坍塌串行/解锁/撤销(快照/配额/忙碌/败局恢复/清栈) |
 | levels.test | **30 关逐个过校验器（含紧度断言）**、生成器倍数、校验器反例、宽松关被紧度闸门拒出厂 |
 | bootstrap.test | 无头端到端：bootstrap→模拟点击通关→面板进下一关；金币购买撤销/提示走弹窗确认（含取消分支）；失败面板金币救援（不可撤销零消耗）；撤销激励兜底（含败局顶栏撤销关面板）；选关页常驻横幅显隐与预留区 |
-| ad.test | mock 发奖/无冷启动限制/冷却/每关限次/日限/真广告 isEnded/并发 busy + InterstitialManager 闸门链（mock 无操作/第1关/胜利间隔≥2/冷却/日限/showFail 不耗闸门/冷却跨会话）+ TemplateAdManager 闸门与 20:7 定位、isShow 函数解包 |
+| ad.test | mock 发奖/无冷启动限制/**无冷却·无日限·无每关限**（计数仅埋点）/并发 busy/真广告 isEnded/跳过不发/在播报错保奖励/启动不预拉激励 + InterstitialManager 闸门链（mock 无操作/第1关/胜利间隔≥2/冷却/日限/showFail 不耗闸门/冷却跨会话）+ TemplateAdManager 闸门与 20:7 定位、实例懒建、isShow 函数解包 |
 | share.test | 分享发奖/取消不发/冷却/单关限次/标题模板 |
-| audio.test | 10 个 wav 存在/体积预算(音效<100KB·BGM<600KB)/RIFF 单声道 22050Hz + AudioManager BGM 韧性（onError 重建/canplay 补播/静音联动/ensureBgm） |
+| audio.test | 10 个 wav 存在/体积预算(音效<100KB·BGM<700KB)/RIFF 单声道 22050Hz + AudioManager BGM 韧性（onError 重建/canplay 补播/静音联动/ensureBgm） |
 | ui.test | 胶囊避让/按钮对齐/撤销按钮常亮（金币与激励兜底）/帮助面板滚动惯性/槽位对称留白/重置 |
 | meta.test | 存档/引导推进/选关/暂停/金币收支/失败面板条件展示/按钮不越界/Toast |
-| launch.test | 被动分享注册/冷启动与热启动 query 直达/超解锁回落/回归遮罩 |
+| launch.test | 被动分享注册/冷启动与热启动 query 直达/超解锁回落/回归遮罩/冷启动 DPR 校准/脉冲动画隔帧出图/排行榜启动上报与最终关补正 |
 
 **约定：新功能必须带测试**；纯逻辑直接断言，UI 用假 ctx 冒烟，流程用 bootstrap 无头驱动（mock Platform 的 `raf` 收帧、`now` 控时钟）。
 
@@ -255,12 +260,12 @@ node scripts/headlessPlaythrough.js  # 30 关无头打通（贪心玩家）
 ### 7.6 接真广告/上线（已完成）
 1. appid 已接正式（`wx30bb8fa22ff4c18f`）；
 2. 激励位 `GameConfig.ad.unitId`、插屏位 `ad.interUnitId`、原生模板位 `ad.templateUnitId`（20:7 横幅卡片）已填正式广告位 ID；
-3. `GameConfig.ad.mode` 已为 `'ad'` —— 五个奖励位与文案自动切为「看视频」，ShareManager 仅回退保留；
+3. `GameConfig.ad.mode` 已为 `'ad'` —— 七个奖励位与文案自动切为「看视频」，ShareManager 仅回退保留；
 4. 插屏经 `InterstitialManager.maybeShow` 仅挂结算「下一关」转场（闸门见 4.8）；横幅由 `TemplateAdManager` 常驻选关页、随结算/暂停面板显隐（tick 闸门）；
 AdManager 走真实流程（onClose.isEnded 才发奖，失败静默降级）。提审素材/类目为人工项。
 
 ### 7.7 换 logo/图标/分享图
-PIL 脚本现画：`logo.png` 为 4 倍超采样+圆角 mask+floodfill 裁角；`share.png` 为 500×400 卡片图（PingFang 渲染中文）。改尺寸/文案重跑对应脚本。
+历史以 PIL 脚本现画（`logo.png` 4 倍超采样+圆角 mask+floodfill 裁角；`share.png` 500×400 卡片图，PingFang 渲染中文），脚本已不在仓库；**成品源稿归档 `minigameImgs.zip`**。换图直接替换 zip 内源稿并保持 `GameConfig.share.imageUrl`/`imageId` 指向后台已审网络图。
 
 ### 7.8 迁移 Cocos（数据验证后的路线）
 `gameplay/ levels/ core/（除 TweenManager） math/` 整体平移；替换 `render/ camera/ interaction/ ui/ platform/` 为引擎等价物。GDD 附录 B 有对照表。
@@ -272,7 +277,7 @@ PIL 脚本现画：`logo.png` 为 4 倍超采样+圆角 mask+floodfill 裁角；
 | 项 | 现状 | 说明 |
 |---|---|---|
 | 埋点 Analytics | `Platform.reportEvent` 未接线 | GDD 6.3 事件表已定，补监听器即可 |
-| BGM 兼容 | 已接入（12.8s 无缝循环 0.35 音量；onCanplay 补播 + onError 重建重播 ≤3 次 + onShow ensureBgm，专治安卓无声/不恢复） | 低端安卓若仍无声，素材转 mp3/m4a 再验 |
+| BGM 兼容 | 已接入（10s 无缝循环 0.5 音量；onCanplay 补播 + onError 重建重播 ≤3 次 + onShow ensureBgm，专治安卓无声/不恢复） | 低端安卓若仍无声，素材转 mp3/m4a 再验 |
 | 自动聚焦镜头 | 未做（GDD 二期） | CameraController 留 `focusOn()` |
 | 提示按钮 | 常驻可用（每关 1 次） | 卡关 60s 另有 Toast 引导；目标仅限当前视角可见螺丝 |
 | 物理坍塌 Pro | 未做 | 原生路线无物理引擎，属 Cocos 迁移项 |
@@ -312,7 +317,7 @@ PIL 脚本现画：`logo.png` 为 4 倍超采样+圆角 mask+floodfill 裁角；
 | 点螺丝无反应 | InputManager.locked（坍塌队列/拧出中）→ 螺丝 state 是否 locked → Raycaster 遮挡 |
 | 画面不刷新 | tick 是否启动（env 判断）→ Platform.raf mock 是否吞帧（测试环境） |
 | 槽位残留旧螺丝 | `LEVEL_LOADED` 是否被 SlotUI 收到（重置唯一入口） |
-| 广告不弹 | AdManager.canShow 的 reason（cooldown/dailyLimit/perLevel/busy；激励无冷启动限制）；插屏另看 inter* 闸门（protected/winGap/cooldown/dailyLimit；showFail 会留 `events` 痕迹且不耗闸门）；横幅模板查 TemplateAdManager.isMock/active 与 tick 闸门 |
+| 广告不弹 | 激励 `canShow` 恒过（无频控），不弹只可能是并发 `busy`（上一单未回调）或广告加载/填充失败（看 `events` 痕迹与 `_onError`；播中报错不清 pending 保奖励）；插屏另看 inter* 闸门（protected/winGap/cooldown/dailyLimit；showFail 会留 `events` 痕迹且不耗闸门）；横幅模板查 TemplateAdManager.isMock/active 与 tick 闸门 |
 | 音效不响 | 是否 unlock（首次点击）→ audio/*.wav 是否存在 → _failed 标记 |
 | BGM 安卓不响 | 素材是否 22050Hz（采样率异常是安卓无声首因）→ `bgmOn`/`muted` 状态 → `_bgmAttempts` 是否达 3 放弃 → ensureBgm 是否被 onShow 调到 |
 | 关卡死局 | `node scripts/headlessPlaythrough.js` 复现 → validator runs 提高 → 换 seed/加槽 |
